@@ -127,3 +127,64 @@ body {
     padding-right: 0.75rem;
   }
 }
+
+/* Add these Tailwind-like utility classes */
+.bg-dark-card {
+  background: #2d2d44;
+}
+
+.text-candy-pink {
+  color: #FF69B4;
+}
+
+.text-candy-blue {
+  color: #6EC5E9;
+}
+
+.text-candy-green {
+  color: #77DD77;
+}
+
+.text-candy-yellow {
+  color: #FFD700;
+}
+
+.text-candy-purple {
+  color: #B19CD9;
+}
+
+.text-candy-orange {
+  color: #FFA500;
+}
+
+.bg-gradient-to-r {
+  background: linear-gradient(to right, var(--tw-gradient-from), var(--tw-gradient-to));
+}
+
+.from-candy-pink {
+  --tw-gradient-from: #FF69B4;
+}
+
+.to-candy-blue {
+  --tw-gradient-to: #6EC5E9;
+}
+
+.to-emerald-600 {
+  --tw-gradient-to: #059669;
+}
+
+.to-rose-600 {
+  --tw-gradient-to: #e11d48;
+}
+
+.to-amber-600 {
+  --tw-gradient-to: #d97706;
+}
+
+.to-cyan-600 {
+  --tw-gradient-to: #0891b2;
+}
+
+.to-violet-600 {
+  --tw-gradient-to: #7c3aed;
+}

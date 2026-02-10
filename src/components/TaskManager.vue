@@ -80,7 +80,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { 
   ListBulletIcon,
   PlusIcon, 
@@ -95,6 +95,9 @@ const newTask = ref('')
 const pendingTasks = computed(() => {
   return tasks.value.filter(t => !t.completed).length
 })
+
+// Auto-refresh tasks every 2 seconds
+let taskInterval = null
 
 const loadTasks = async () => {
   try {
@@ -155,5 +158,16 @@ const formatDate = (dateString) => {
 
 onMounted(() => {
   loadTasks()
+  
+  // Auto-refresh tasks every 2 seconds for real-time updates
+  taskInterval = setInterval(() => {
+    loadTasks()
+  }, 2000)
+})
+
+onUnmounted(() => {
+  if (taskInterval) {
+    clearInterval(taskInterval)
+  }
 })
 </script>

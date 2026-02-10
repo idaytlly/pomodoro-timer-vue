@@ -1,5 +1,5 @@
 <template>
-  <div class="candy-card animate-pulse-glow w-full">
+  <div class="w-full">
     <!-- Timer Header -->
     <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 sm:mb-8 gap-3 sm:gap-4">
       <div class="flex items-center gap-2 sm:gap-4">
@@ -21,7 +21,7 @@
 
     <!-- Timer Circle -->
     <div class="relative w-56 h-56 sm:w-64 sm:h-64 md:w-72 md:h-72 mx-auto mb-6 sm:mb-8">
-      <svg class="progress-ring w-full h-full" viewBox="0 0 300 300">
+      <svg class="progress-ring w-full h-full drop-shadow-lg" viewBox="0 0 300 300">
         <circle
           class="progress-ring-circle"
           :stroke-dasharray="circumference"

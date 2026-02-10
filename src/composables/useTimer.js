@@ -1,4 +1,4 @@
-import { ref, computed, onUnmounted } from 'vue'
+import { ref, computed, onUnmounted, watch } from 'vue'
 import { db } from '../utils/db'
 import { playSound, notify } from '../utils/notifications'
 
@@ -158,6 +158,15 @@ export default function useTimer(settings) {
       timerState
     })
   }
+  
+  // Watch for changes and auto-save
+  watch([timerType, currentSession, completedSessions], async () => {
+    try {
+      await saveTimerState()
+    } catch (err) {
+      console.error('Error auto-saving timer state:', err)
+    }
+  }, { deep: true })
   
   // Cleanup
   onUnmounted(() => {
