@@ -1,0 +1,129 @@
+/* src/style.css */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Reset and Base Styles */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100vh;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Custom Theme Styles */
+.candy-gradient {
+  background: linear-gradient(to right, #FF69B4, #6EC5E9);
+}
+
+.candy-card {
+  background: #2d2d44;
+  border-radius: 1rem;
+  padding: 1.5rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease;
+}
+
+.candy-card:hover {
+  border-color: rgba(255, 105, 180, 0.2);
+  box-shadow: 0 10px 40px rgba(255, 105, 180, 0.15);
+}
+
+/* Responsive Card Padding */
+@media (max-width: 640px) {
+  .candy-card {
+    padding: 1rem;
+  }
+}
+
+.candy-btn {
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.75rem;
+  font-weight: bold;
+  transition: all 0.3s;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  border: none;
+}
+
+.candy-btn:hover:not(:disabled) {
+  transform: scale(1.05);
+}
+
+.candy-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Responsive Button Sizes */
+@media (max-width: 640px) {
+  .candy-btn {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+  }
+}
+
+.candy-input {
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid #B19CD9;
+  border-radius: 0.75rem;
+  padding: 0.75rem 1rem;
+  color: white;
+  width: 100%;
+  transition: all 0.3s;
+  font-family: inherit;
+  font-size: inherit;
+}
+
+.candy-input::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.candy-input:focus {
+  outline: none;
+  border-color: #FF69B4;
+  box-shadow: 0 0 10px rgba(255, 105, 180, 0.3);
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 105, 180, 0.5);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 105, 180, 0.7);
+}
+
+/* Container Responsiveness */
+.container {
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+@media (max-width: 640px) {
+  .container {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+}
