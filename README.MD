@@ -154,7 +154,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 Ida Yatullailliyeh - [idayatullailliyeh@gmail.com](mailto:idayatullailliyeh@gmail.com)
 
-Project Link: [https://github.com/idayatullailliyeh/pomodoro-timer-vue](https://github.com/idayatullailliyeh/pomodoro-timer-vue)
+Project Link: [https://github.com/idaytlly/pomodoro-timer-vue](https://github.com/idayatullailliyeh/pomodoro-timer-vue)
 
 ---
 
