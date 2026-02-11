@@ -246,42 +246,56 @@ onUnmounted(() => {
 
 <style scoped>
 .stats-panel {
-  @apply bg-dark-card rounded-2xl p-6 shadow-2xl border border-white/10;
+  background: #2d2d44;
+  border-radius: 1rem;
+  padding: 1.5rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .stat-card {
-  @apply bg-white/5 rounded-xl p-4 text-center;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 0.75rem;
+  padding: 1rem;
+  text-align: center;
 }
 
 .stat-value {
-  @apply text-3xl font-bold mb-1;
+  font-size: 1.875rem;
+  font-weight: bold;
+  margin-bottom: 0.25rem;
 }
 
 .stat-label {
-  @apply text-gray-400 text-sm;
+  color: #9CA3AF;
+  font-size: 0.875rem;
 }
 
 .chart-container {
-  @apply h-48;
+  height: 12rem;
 }
 
 .session-item {
-  @apply bg-white/5 rounded-lg p-3;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 0.5rem;
+  padding: 0.75rem;
 }
 
 .session-type {
-  @apply w-3 h-3 rounded-full;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 9999px;
 }
 
 .session-type.focus {
-  @apply bg-candy-pink;
+  background-color: #FF69B4;
 }
 
 .session-type.shortBreak {
-  @apply bg-candy-blue;
+  background-color: #6EC5E9;
 }
 
 .session-type.longBreak {
-  @apply bg-candy-green;
+  background-color: #77DD77;
 }
 </style>

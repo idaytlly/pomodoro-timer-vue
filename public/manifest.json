@@ -1,0 +1,33 @@
+{
+  "name": "Candy Pomodoro Timer",
+  "short_name": "CandyPomodoro",
+  "description": "A candy-themed Pomodoro timer with productivity tracking",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1a1a2e",
+  "theme_color": "#FF69B4",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/vite.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["productivity", "utilities"],
+  "shortcuts": [
+    {
+      "name": "Start Focus Session",
+      "short_name": "Focus",
+      "description": "Start a 25-minute focus session",
+      "url": "/?start=focus"
+    },
+    {
+      "name": "Start Short Break",
+      "short_name": "Break",
+      "description": "Start a 5-minute break",
+      "url": "/?start=break"
+    }
+  ]
+}

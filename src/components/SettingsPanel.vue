@@ -210,26 +210,59 @@ watch(() => props.settings, (newSettings) => {
 
 <style scoped>
 .settings-panel {
-  @apply bg-dark-card rounded-2xl p-6 shadow-2xl border border-white/10;
+  background: #2d2d44;
+  border-radius: 1rem;
+  padding: 1.5rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .setting-item {
-  @apply mb-4;
+  margin-bottom: 1rem;
 }
 
 .setting-label {
-  @apply block text-gray-300 mb-2 font-medium;
+  display: block;
+  color: #D1D5DB;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
 }
 
 .setting-input {
-  @apply w-full bg-white/10 border-2 border-candy-purple rounded-xl px-4 py-3 text-white focus:outline-none focus:border-candy-pink transition;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid #9F7AEA;
+  border-radius: 0.75rem;
+  padding: 0.75rem 1rem;
+  color: white;
+  transition: border-color 0.3s ease;
+}
+
+.setting-input:focus {
+  outline: none;
+  border-color: #FF69B4;
 }
 
 .setting-checkbox {
-  @apply w-5 h-5 accent-candy-pink cursor-pointer;
+  width: 1.25rem;
+  height: 1.25rem;
+  cursor: pointer;
+  accent-color: #FF69B4;
 }
 
 .candy-btn {
-  @apply flex-1 px-4 py-3 rounded-xl font-bold transition-all duration-300 hover:scale-105 active:scale-95;
+  flex: 1;
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+  font-weight: bold;
+  transition: transform 0.3s ease;
+}
+
+.candy-btn:hover {
+  transform: scale(1.05);
+}
+
+.candy-btn:active {
+  transform: scale(0.95);
 }
 </style>

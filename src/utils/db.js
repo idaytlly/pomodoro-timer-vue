@@ -1,61 +1,58 @@
 import { openDB } from 'idb'
 
 const DB_NAME = 'candy-pomodoro-db'
-const DB_VERSION = 1
+const DB_VERSION = 2
 
 let dbInstance = null
 
 const initDB = async () => {
-  if (dbInstance) {
-    return dbInstance
-  }
+  if (dbInstance) return dbInstance
   
-  try {
-    dbInstance = await openDB(DB_NAME, DB_VERSION, {
-      upgrade(db) {
-        // Tasks store
-        if (!db.objectStoreNames.contains('tasks')) {
-          const taskStore = db.createObjectStore('tasks', { keyPath: 'id', autoIncrement: true })
-          taskStore.createIndex('createdAt', 'createdAt')
-          taskStore.createIndex('completed', 'completed')
-        }
-        
-        // Sessions store
-        if (!db.objectStoreNames.contains('sessions')) {
-          const sessionStore = db.createObjectStore('sessions', { keyPath: 'id', autoIncrement: true })
-          sessionStore.createIndex('date', 'date')
-          sessionStore.createIndex('type', 'type')
-        }
-        
-        // Statistics store
-        if (!db.objectStoreNames.contains('stats')) {
-          const statsStore = db.createObjectStore('stats', { keyPath: 'date' })
-        }
-        
-        // Settings store
-        if (!db.objectStoreNames.contains('settings')) {
-          db.createObjectStore('settings', { keyPath: 'id' })
-        }
-      },
-    })
-    console.log('Database initialized successfully')
-    return dbInstance
-  } catch (err) {
-    console.error('Failed to initialize database:', err)
-    throw err
-  }
+  dbInstance = await openDB(DB_NAME, DB_VERSION, {
+    upgrade(db, oldVersion, newVersion) {
+      console.log(`Upgrading database from ${oldVersion} to ${newVersion}`)
+      
+      // Create stores if they don't exist
+      if (!db.objectStoreNames.contains('tasks')) {
+        const taskStore = db.createObjectStore('tasks', { keyPath: 'id', autoIncrement: true })
+        taskStore.createIndex('createdAt', 'createdAt')
+        taskStore.createIndex('completed', 'completed')
+        taskStore.createIndex('date', 'date')
+      }
+      
+      if (!db.objectStoreNames.contains('sessions')) {
+        const sessionStore = db.createObjectStore('sessions', { keyPath: 'id', autoIncrement: true })
+        sessionStore.createIndex('date', 'date')
+        sessionStore.createIndex('type', 'type')
+        sessionStore.createIndex('createdAt', 'createdAt')
+      }
+      
+      if (!db.objectStoreNames.contains('settings')) {
+        db.createObjectStore('settings', { keyPath: 'key' })
+      }
+      
+      if (!db.objectStoreNames.contains('stats')) {
+        db.createObjectStore('stats', { keyPath: 'date' })
+      }
+    },
+  })
+  
+  return dbInstance
 }
 
 export const db = {
-  // Task operations
-  async getTasks() {
+  // ========== TASK OPERATIONS ==========
+  async getTasks(date = null) {
     try {
       const database = await initDB()
-      const result = await database.getAll('tasks')
-      console.log('Retrieved tasks from DB:', result)
-      return result
-    } catch (err) {
-      console.error('Error getting tasks:', err)
+      if (date) {
+        const tx = database.transaction('tasks', 'readonly')
+        const index = tx.store.index('date')
+        return index.getAll(date)
+      }
+      return database.getAll('tasks')
+    } catch (error) {
+      console.error('Error getting tasks:', error)
       return []
     }
   },
@@ -63,17 +60,16 @@ export const db = {
   async addTask(task) {
     try {
       const database = await initDB()
-      console.log('Adding task to DB:', task)
-      const id = await database.add('tasks', {
+      const taskWithDate = {
         ...task,
+        date: new Date().toISOString().split('T')[0],
         createdAt: new Date().toISOString(),
-        completed: false
-      })
-      console.log('Task added with ID:', id)
-      return id
-    } catch (err) {
-      console.error('Error adding task:', err)
-      throw err
+        completed: task.completed || false
+      }
+      return await database.add('tasks', taskWithDate)
+    } catch (error) {
+      console.error('Error adding task:', error)
+      throw error
     }
   },
   
@@ -83,111 +79,250 @@ export const db = {
       const tx = database.transaction('tasks', 'readwrite')
       const store = tx.objectStore('tasks')
       const task = await store.get(id)
-      await store.put({ ...task, ...updates })
-      await tx.done
-      console.log('Task updated:', id)
-    } catch (err) {
-      console.error('Error updating task:', err)
-      throw err
+      
+      if (task) {
+        const updatedTask = { ...task, ...updates, updatedAt: new Date().toISOString() }
+        await store.put(updatedTask)
+        await tx.done
+        return updatedTask
+      }
+      return null
+    } catch (error) {
+      console.error('Error updating task:', error)
+      throw error
     }
   },
   
   async deleteTask(id) {
     try {
       const database = await initDB()
-      await database.delete('tasks', id)
-      console.log('Task deleted:', id)
-    } catch (err) {
-      console.error('Error deleting task:', err)
-      throw err
+      return database.delete('tasks', id)
+    } catch (error) {
+      console.error('Error deleting task:', error)
+      throw error
     }
   },
   
-  // Session operations
+  async clearCompletedTasks() {
+    try {
+      const database = await initDB()
+      const tx = database.transaction('tasks', 'readwrite')
+      const store = tx.objectStore('tasks')
+      const index = store.index('completed')
+      const completedTasks = await index.getAll(true)
+      
+      await Promise.all(completedTasks.map(task => store.delete(task.id)))
+      await tx.done
+      return completedTasks.length
+    } catch (error) {
+      console.error('Error clearing completed tasks:', error)
+      throw error
+    }
+  },
+  
+  // ========== SESSION OPERATIONS ==========
   async addSession(session) {
     try {
       const database = await initDB()
-      return database.add('sessions', {
+      const sessionWithDate = {
         ...session,
-        date: new Date().toISOString().split('T')[0]
-      })
-    } catch (err) {
-      console.error('Error adding session:', err)
-      throw err
+        date: new Date().toISOString().split('T')[0],
+        createdAt: new Date().toISOString(),
+        completedAt: session.completedAt || new Date().toISOString()
+      }
+      return await database.add('sessions', sessionWithDate)
+    } catch (error) {
+      console.error('Error adding session:', error)
+      throw error
     }
   },
   
-  async getSessions(date) {
+  async getSessions(date = null) {
     try {
       const database = await initDB()
-      const tx = database.transaction('sessions', 'readonly')
-      const index = tx.store.index('date')
-      return index.getAll(date)
-    } catch (err) {
-      console.error('Error getting sessions:', err)
+      if (date) {
+        const tx = database.transaction('sessions', 'readonly')
+        const index = tx.store.index('date')
+        return index.getAll(date)
+      }
+      return database.getAll('sessions')
+    } catch (error) {
+      console.error('Error getting sessions:', error)
+      return []
+    }
+  },
+  
+  async getTodaySessions() {
+    try {
+      const today = new Date().toISOString().split('T')[0]
+      return this.getSessions(today)
+    } catch (error) {
+      console.error('Error getting today sessions:', error)
+      return []
+    }
+  },
+  
+  async getWeeklySessions() {
+    try {
+      const database = await initDB()
+      const sevenDaysAgo = new Date()
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+      
+      const allSessions = await database.getAll('sessions')
+      return allSessions.filter(session => {
+        const sessionDate = new Date(session.date)
+        return sessionDate >= sevenDaysAgo
+      })
+    } catch (error) {
+      console.error('Error getting weekly sessions:', error)
       return []
     }
   },
   
   async getWeeklyStats() {
     try {
-      const database = await initDB()
-      const sevenDaysAgo = new Date()
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+      const sessions = await this.getWeeklySessions()
+      const weeklyData = new Array(7).fill(0)
       
-      const tx = database.transaction('sessions', 'readonly')
-      const store = tx.objectStore('sessions')
-      const sessions = await store.getAll()
-      
-      return sessions.filter(session => {
-        const sessionDate = new Date(session.date)
-        return sessionDate >= sevenDaysAgo
+      sessions.forEach(session => {
+        if (session.type === 'focus') {
+          const date = new Date(session.date)
+          const day = date.getDay()
+          weeklyData[day] += session.duration || 25
+        }
       })
-    } catch (err) {
-      console.error('Error getting weekly stats:', err)
-      return []
+      
+      // Reorder to start from Monday
+      return weeklyData.slice().concat(weeklyData).slice(1, 8)
+    } catch (error) {
+      console.error('Error getting weekly stats:', error)
+      return [0, 0, 0, 0, 0, 0, 0]
     }
   },
   
-  // Settings operations
+  // ========== STATISTICS OPERATIONS ==========
+  async getTodayStats() {
+    try {
+      const today = new Date().toISOString().split('T')[0]
+      
+      // Get today's sessions
+      const sessions = await this.getSessions(today)
+      const focusSessions = sessions.filter(s => s.type === 'focus')
+      const totalFocusTime = focusSessions.reduce((sum, s) => sum + (s.duration || 25), 0)
+      
+      // Get today's tasks
+      const tasks = await this.getTasks(today)
+      const completedTasks = tasks.filter(t => t.completed).length
+      
+      return {
+        focusTime: totalFocusTime,
+        sessions: focusSessions.length,
+        tasksCompleted: completedTasks,
+        productivity: focusSessions.length > 0 
+          ? Math.min(100, Math.floor((totalFocusTime / (focusSessions.length * 25)) * 100))
+          : 0
+      }
+    } catch (error) {
+      console.error('Error getting today stats:', error)
+      return {
+        focusTime: 0,
+        sessions: 0,
+        tasksCompleted: 0,
+        productivity: 0
+      }
+    }
+  },
+  
+  // ========== SETTINGS OPERATIONS ==========
   async saveSettings(settings) {
     try {
       const database = await initDB()
       const tx = database.transaction('settings', 'readwrite')
-      await tx.store.put({ id: 'userSettings', ...settings })
+      await tx.store.put({ key: 'userSettings', value: settings })
       await tx.done
-      console.log('Settings saved')
-    } catch (err) {
-      console.error('Error saving settings:', err)
-      throw err
+      return settings
+    } catch (error) {
+      console.error('Error saving settings:', error)
+      throw error
     }
   },
   
   async getSettings() {
     try {
       const database = await initDB()
-      return await database.get('settings', 'userSettings')
-    } catch (err) {
-      console.error('Error getting settings:', err)
+      const settings = await database.get('settings', 'userSettings')
+      return settings ? settings.value : null
+    } catch (error) {
+      console.error('Error getting settings:', error)
       return null
     }
   },
   
-  // Clear all data
+  // ========== DATA MANAGEMENT ==========
   async clearAllData() {
     try {
       const database = await initDB()
       const tx = database.transaction(['tasks', 'sessions', 'stats'], 'readwrite')
+      
       await Promise.all([
         tx.objectStore('tasks').clear(),
         tx.objectStore('sessions').clear(),
         tx.objectStore('stats').clear()
       ])
+      
       await tx.done
-      console.log('All data cleared')
-    } catch (err) {
-      console.error('Error clearing data:', err)
-      throw err
+      return true
+    } catch (error) {
+      console.error('Error clearing data:', error)
+      throw error
+    }
+  },
+  
+  async exportData() {
+    try {
+      const database = await initDB()
+      const [tasks, sessions, settings] = await Promise.all([
+        database.getAll('tasks'),
+        database.getAll('sessions'),
+        database.getAll('settings')
+      ])
+      
+      return {
+        version: DB_VERSION,
+        exportedAt: new Date().toISOString(),
+        tasks,
+        sessions,
+        settings
+      }
+    } catch (error) {
+      console.error('Error exporting data:', error)
+      throw error
+    }
+  },
+  
+  async importData(data) {
+    try {
+      await this.clearAllData()
+      const database = await initDB()
+      const tx = database.transaction(['tasks', 'sessions', 'settings'], 'readwrite')
+      
+      if (data.tasks) {
+        await Promise.all(data.tasks.map(task => tx.objectStore('tasks').add(task)))
+      }
+      
+      if (data.sessions) {
+        await Promise.all(data.sessions.map(session => tx.objectStore('sessions').add(session)))
+      }
+      
+      if (data.settings) {
+        await Promise.all(data.settings.map(setting => tx.objectStore('settings').add(setting)))
+      }
+      
+      await tx.done
+      return true
+    } catch (error) {
+      console.error('Error importing data:', error)
+      throw error
     }
   }
 }
