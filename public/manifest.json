@@ -4,8 +4,8 @@
   "description": "A candy-themed Pomodoro timer with productivity tracking",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#1a1a2e",
-  "theme_color": "#FF69B4",
+  "theme_color": "#f8f9fa",  
+  "background_color": "#f8f9fa", 
   "orientation": "portrait-primary",
   "icons": [
     {
