@@ -1,468 +1,968 @@
 <template>
-  <div class="app-container">
-    <!-- Animated Background -->
-    <div class="background-candy">
-      <div class="candy-bubble bubble-1"></div>
-      <div class="candy-bubble bubble-2"></div>
-      <div class="candy-bubble bubble-3"></div>
-      <div class="candy-bubble bubble-4"></div>
-      <div class="candy-bubble bubble-5"></div>
+  <div class="dashboard">
+    <!-- TOP SECTION: mode chips + timer controls + session counter -->
+    <div class="top-section">
+      <div class="mode-chips">
+        <div 
+          v-for="mode in modes" 
+          :key="mode.id"
+          class="chip" 
+          :class="{ active: timerMode === mode.id }" 
+          @click="switchMode(mode.id)"
+        >
+          <span class="icon">{{ mode.icon }}</span> {{ mode.label }}
+        </div>
+      </div>
+
+      <!-- compact timer ring + digits -->
+      <div class="compact-timer-ring">
+        <div class="ring-container">
+          <svg width="110" height="110" viewBox="0 0 120 120">
+            <circle 
+              class="ring-bg" 
+              cx="60" cy="60" r="50" 
+              stroke="rgba(255,190,210,0.4)" 
+              stroke-width="8" 
+              fill="none" 
+            />
+            <circle 
+              class="ring-progress" 
+              cx="60" cy="60" r="50" 
+              :stroke="currentModeColor"
+              stroke-width="8" 
+              fill="none"
+              :stroke-dasharray="circumference" 
+              :stroke-dashoffset="strokeDashoffset"
+              style="transform: rotate(-90deg); transform-origin: 60px 60px;" 
+            />
+          </svg>
+          <div class="timer-digits">
+            {{ formattedMinutes }}:{{ formattedSeconds }}
+          </div>
+          <div class="timer-label">{{ currentModeLabel }}</div>
+        </div>
+      </div>
+
+      <!-- start/pause/reset buttons -->
+      <div class="button-group">
+        <button 
+          v-if="timerState !== 'running'" 
+          @click="startTimer" 
+          class="btn-timer"
+        >
+          <span style="font-size:1.2rem;">▶️</span> Start
+        </button>
+        <button 
+          v-else 
+          @click="pauseTimer" 
+          class="btn-timer" 
+          style="background: #b4a0d4;"
+        >
+          <span style="font-size:1.2rem;">⏸️</span> Pause
+        </button>
+        <button @click="resetTimer" class="btn-secondary">
+          ↺ Reset
+        </button>
+      </div>
     </div>
 
-    <!-- Header -->
-    <header class="app-header">
-      <div class="header-content">
-        <h1 class="app-title">
-          <span class="title-emoji">🍭</span>
-          Candy Pomodoro
-        </h1>
-        <div class="header-subtitle">Sweet productivity, one session at a time</div>
-      </div>
-      
-      <!-- Tab Navigation -->
-      <nav class="tab-nav">
-        <button
-          v-for="tab in tabs"
-          :key="tab.id"
-          @click="activeTab = tab.id"
-          :class="['tab-btn', { 'active': activeTab === tab.id }]"
-        >
-          <span class="tab-icon">{{ tab.icon }}</span>
-          <span class="tab-label">{{ tab.label }}</span>
-        </button>
-      </nav>
-    </header>
+    <!-- MAIN 2-COLUMN GRID (NO SCROLL) -->
+    <div class="main-grid">
+      <!-- LEFT COLUMN: Tasks + quick add -->
+      <div class="left-col">
+        <div class="glass-panel tasks-panel">
+          <div class="task-mini-header">
+            <h3 class="panel-title">
+              <span>🍬</span> Tasks 
+              <span class="task-badge">{{ activeTasks.length }}</span>
+            </h3>
+            <span class="completion-badge">{{ completionRate }}% done</span>
+          </div>
 
-    <!-- Main Content -->
-    <main class="app-main">
-      <div class="content-container">
-        
-        <!-- Timer Tab -->
-        <div v-show="activeTab === 'timer'" class="tab-content">
-          <div class="timer-section">
-            <TimerDisplay
-              :minutes="minutes"
-              :seconds="seconds"
-              :currentMode="currentMode"
-              :timerState="timerState"
-              :strokeDashoffset="strokeDashoffset"
-              :circumference="circumference"
-              :sessionDots="sessionDots"
-              @switchMode="switchMode"
-            />
-            
-            <TimerControls
-              :timerState="timerState"
-              :currentMode="currentMode"
-              @start="startTimer"
-              @pause="pauseTimer"
-              @reset="resetTimer"
-              @skip="skipSession"
-            />
+          <div class="task-input-row">
+            <input 
+              v-model="newTaskTitle" 
+              @keyup.enter="addTask" 
+              class="task-mini-input" 
+              placeholder="Write a task..."
+              maxlength="50"
+            >
+            <button @click="addTask" class="btn-add">+</button>
+          </div>
+
+          <div class="scrollable-y task-list-container">
+            <div class="task-list-mini">
+              <div 
+                v-for="task in sortedTasks" 
+                :key="task.id" 
+                class="task-item-mini"
+              >
+                <div 
+                  @click="toggleTask(task.id)" 
+                  class="task-check" 
+                  :class="{ done: task.completed }"
+                >
+                  <span v-if="task.completed">✓</span>
+                </div>
+                <span 
+                  class="task-title" 
+                  :class="{ completed: task.completed }"
+                >{{ task.title }}</span>
+                <button 
+                  @click="deleteTask(task.id)" 
+                  class="task-delete-btn"
+                >🗑️</button>
+              </div>
+              <div 
+                v-if="store.tasks.length === 0" 
+                class="empty-tasks"
+              >
+                ✨ No tasks — add one!
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT COLUMN: STATS + SETTINGS (MINI) -->
+      <div class="right-col">
+        <!-- STATS PANEL (COMPACT) -->
+        <div class="glass-panel stats-panel">
+          <div class="panel-header">
+            <span class="panel-icon">📊</span>
+            <h3 class="panel-title">Today</h3>
+          </div>
+          
+          <div class="stats-micro-grid">
+            <div class="stat-bubble">
+              <div class="stat-number">{{ todayMinutes }}</div>
+              <div class="stat-label">minutes</div>
+            </div>
+            <div class="stat-bubble">
+              <div class="stat-number">{{ todaySessions }}</div>
+              <div class="stat-label">sessions</div>
+            </div>
+          </div>
+          
+          <div class="weekly-progress-container">
+            <div class="progress-header">
+              <span>Weekly goal</span>
+              <span>{{ weeklyTotal }} / {{ weeklyGoal }} min</span>
+            </div>
+            <div class="weekly-progress">
+              <div 
+                class="progress-fill" 
+                :style="{ width: weeklyProgressPercent + '%' }"
+              ></div>
+            </div>
+          </div>
+          
+          <div class="streak-info">
+            <span>🔥 {{ streak }} day streak</span>
+            <span>🎯 {{ completedSessions }}/{{ totalSessions }} sessions</span>
           </div>
         </div>
 
-        <!-- Tasks Tab -->
-        <div v-show="activeTab === 'tasks'" class="tab-content">
-          <TaskManager />
+        <!-- SETTINGS MINI -->
+        <div class="glass-panel settings-panel">
+          <div class="panel-header">
+            <span class="panel-icon">⚙️</span>
+            <span class="panel-title">Quick settings</span>
+          </div>
+          
+          <div class="settings-mini-row">
+            <div class="toggle-mini">
+              <span>🔔 Sound</span>
+              <div 
+                @click="toggleSetting('soundEnabled')" 
+                class="toggle-switch" 
+                :class="{ active: settings.soundEnabled }"
+              >
+                <div class="toggle-slider"></div>
+              </div>
+            </div>
+            <div class="toggle-mini">
+              <span>🔕 Notif</span>
+              <div 
+                @click="toggleSetting('notificationsEnabled')" 
+                class="toggle-switch" 
+                :class="{ active: settings.notificationsEnabled }"
+              >
+                <div class="toggle-slider"></div>
+              </div>
+            </div>
+            <div class="toggle-mini">
+              <span>🔄 Auto break</span>
+              <div 
+                @click="toggleSetting('autoStartBreaks')" 
+                class="toggle-switch" 
+                :class="{ active: settings.autoStartBreaks }"
+              >
+                <div class="toggle-slider"></div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="duration-badges">
+            <span>🍬 Focus: {{ settings.focusDuration }}m</span>
+            <span>☕ Break: {{ settings.shortBreakDuration }}m</span>
+            <span>🌟 Long: {{ settings.longBreakDuration }}m</span>
+          </div>
         </div>
-
-        <!-- Statistics Tab -->
-        <div v-show="activeTab === 'stats'" class="tab-content">
-          <StatisticsPanel />
-        </div>
-
-        <!-- Settings Tab -->
-        <div v-show="activeTab === 'settings'" class="tab-content">
-          <SettingsPanel
-            :focusDuration="focusDuration"
-            :shortBreakDuration="shortBreakDuration"
-            :longBreakDuration="longBreakDuration"
-            :autoStartBreaks="autoStartBreaks"
-            :autoStartPomodoros="autoStartPomodoros"
-            :soundEnabled="soundEnabled"
-            :notificationsEnabled="notificationsEnabled"
-            @updateSettings="updateSettings"
-          />
+        
+        <!-- RECENT SESSIONS -->
+        <div class="glass-panel recent-panel">
+          <div class="recent-header">
+            <span class="panel-icon">📋</span>
+            <span class="panel-title">Recent</span>
+            <span class="recent-badge">+{{ todaySessions }} today</span>
+          </div>
+          <div class="recent-sessions-list">
+            <div 
+              v-for="session in recentSessions" 
+              :key="session.id" 
+              class="recent-session-item"
+            >
+              <span>{{ session.type === 'focus' ? '🎯' : session.type === 'shortBreak' ? '☕' : '🌟' }}</span>
+              <span>{{ session.duration }}m</span>
+            </div>
+            <span v-if="recentSessions.length === 0" class="no-sessions">No sessions yet</span>
+          </div>
         </div>
       </div>
-    </main>
-
-    <!-- Footer -->
-    <footer class="app-footer">
-      <p class="footer-text">
-        Made with 💖 by <a href="https://github.com/idayatullailiyeh" target="_blank" rel="noopener" class="footer-link">Ida Yatullailiyeh</a>
-      </p>
-      <p class="footer-subtext">Vue.js • Chart.js • IndexedDB</p>
-    </footer>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
+import { useTasks } from './composables/useTasks';
+import { useStatistics } from './composables/useStatistics';
 import { useTimer } from './composables/useTimer';
-import TimerDisplay from './components/TimerDisplay.vue';
-import TimerControls from './components/TimerControls.vue';
-import TaskManager from './components/TaskManager.vue';
-import StatisticsPanel from './components/StatisticsPanel.vue';
-import SettingsPanel from './components/SettingsPanel.vue';
+import { playCompletionSound, setSoundEnabled } from './utils/audio';
+import { setNotificationsEnabled, requestNotificationPermission } from './utils/notifications';
 
-// Timer composable
+// ============ STORE COMPOSABLES ============
+const { 
+  tasks, 
+  newTaskTitle, 
+  addTask, 
+  toggleTask, 
+  deleteTask,
+  activeTasks,
+  completedTasks,
+  completionRate 
+} = useTasks();
+
 const {
+  todayFocusMinutes: todayMinutes,
+  todaySessionCount: todaySessions,
+  weeklyFocusMinutes: weeklyTotal,
+  weeklyGoalProgress,
+  recentSessions,
+  formatSessionType,
+  refreshStats
+} = useStatistics();
+
+// ============ TIMER ============
+const {
+  mode: timerMode,
   timerState,
-  currentMode,
   minutes,
   seconds,
-  strokeDashoffset,
-  circumference,
-  sessionDots,
-  focusDuration,
-  shortBreakDuration,
-  longBreakDuration,
-  autoStartBreaks,
-  autoStartPomodoros,
-  soundEnabled,
-  notificationsEnabled,
-  startTimer,
-  pauseTimer,
-  resetTimer,
-  skipSession,
+  progress,
+  start,
+  pause,
+  reset,
   switchMode,
-  updateSettings
+  circumference,
+  strokeDashoffset,
+  formattedMinutes,
+  formattedSeconds,
+  currentModeLabel,
+  currentModeColor
 } = useTimer();
 
-// Tab navigation
-const activeTab = ref('timer');
-const tabs = [
-  { id: 'timer', icon: '⏱️', label: 'Timer' },
-  { id: 'tasks', icon: '✨', label: 'Tasks' },
-  { id: 'stats', icon: '📊', label: 'Stats' },
-  { id: 'settings', icon: '⚙️', label: 'Settings' }
+// ============ SETTINGS ============
+const settings = reactive({
+  focusDuration: 25,
+  shortBreakDuration: 5,
+  longBreakDuration: 15,
+  autoStartBreaks: true,
+  autoStartPomodoros: false,
+  soundEnabled: true,
+  notificationsEnabled: false
+});
+
+// ============ MODES ============
+const modes = [
+  { id: 'focus', icon: '🎯', label: 'Focus' },
+  { id: 'shortBreak', icon: '☕', label: 'Short' },
+  { id: 'longBreak', icon: '🌟', label: 'Long' }
 ];
+
+// ============ STATS COMPUTED ============
+const weeklyGoal = 1200; // 20 hours in minutes
+const weeklyProgressPercent = computed(() => {
+  return Math.min(100, Math.round((weeklyTotal.value / weeklyGoal) * 100));
+});
+
+const streak = ref(4);
+const completedSessions = ref(12);
+const totalSessions = ref(20);
+
+// ============ TASKS SORTING ============
+const sortedTasks = computed(() => {
+  return [...tasks.value].sort((a, b) => {
+    // Active tasks first, then completed
+    if (a.completed === b.completed) {
+      return new Date(b.createdAt) - new Date(a.createdAt);
+    }
+    return a.completed ? 1 : -1;
+  });
+});
+
+// ============ TIMER METHODS ============
+function startTimer() {
+  start();
+}
+
+function pauseTimer() {
+  pause();
+}
+
+function resetTimer() {
+  reset();
+}
+
+// ============ SETTINGS METHODS ============
+function toggleSetting(key) {
+  settings[key] = !settings[key];
+  
+  if (key === 'soundEnabled') {
+    setSoundEnabled(settings.soundEnabled);
+    if (settings.soundEnabled) {
+      playCompletionSound(); // test sound
+    }
+  }
+  
+  if (key === 'notificationsEnabled') {
+    if (settings.notificationsEnabled) {
+      requestNotificationPermission().then(granted => {
+        settings.notificationsEnabled = granted;
+        setNotificationsEnabled(granted);
+      });
+    } else {
+      setNotificationsEnabled(false);
+    }
+  }
+  
+  // Save to localStorage
+  localStorage.setItem('pomodoro-settings', JSON.stringify(settings));
+}
+
+// ============ LOAD SAVED SETTINGS ============
+onMounted(() => {
+  const savedSettings = localStorage.getItem('pomodoro-settings');
+  if (savedSettings) {
+    Object.assign(settings, JSON.parse(savedSettings));
+    setSoundEnabled(settings.soundEnabled);
+    setNotificationsEnabled(settings.notificationsEnabled);
+  }
+  
+  refreshStats();
+});
 </script>
 
-<style>
-/* Global Styles */
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-body {
-  font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-#app {
-  min-height: 100vh;
-  width: 100%;
-}
-</style>
-
 <style scoped>
-.app-container {
-  min-height: 100vh;
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-  position: relative;
-  overflow-x: hidden;
-}
-
-/* Animated Candy Background */
-.background-candy {
-  position: fixed;
-  top: 0;
-  left: 0;
+/* ---------- NO-SCROLL DASHBOARD LAYOUT ---------- */
+.dashboard {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  height: 100vh;
+  height: 100dvh;
   width: 100%;
-  height: 100%;
-  pointer-events: none;
-  z-index: 0;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 12px;
+  gap: 12px;
+  overflow: hidden;
+  background: linear-gradient(145deg, #faf3f0 0%, #ffe9f0 100%);
 }
 
-.candy-bubble {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(60px);
-  opacity: 0.15;
-  animation: float 20s infinite ease-in-out;
-}
-
-.bubble-1 {
-  width: 400px;
-  height: 400px;
-  background: radial-gradient(circle, #FF69B4, transparent);
-  top: 10%;
-  left: 10%;
-  animation-delay: 0s;
-}
-
-.bubble-2 {
-  width: 300px;
-  height: 300px;
-  background: radial-gradient(circle, #6EC5E9, transparent);
-  top: 60%;
-  right: 10%;
-  animation-delay: -5s;
-}
-
-.bubble-3 {
-  width: 350px;
-  height: 350px;
-  background: radial-gradient(circle, #B19CD9, transparent);
-  bottom: 20%;
-  left: 5%;
-  animation-delay: -10s;
-}
-
-.bubble-4 {
-  width: 250px;
-  height: 250px;
-  background: radial-gradient(circle, #FFD700, transparent);
-  top: 40%;
-  right: 30%;
-  animation-delay: -15s;
-}
-
-.bubble-5 {
-  width: 300px;
-  height: 300px;
-  background: radial-gradient(circle, #77DD77, transparent);
-  top: 70%;
-  left: 40%;
-  animation-delay: -7s;
-}
-
-@keyframes float {
-  0%, 100% {
-    transform: translate(0, 0) scale(1);
-  }
-  25% {
-    transform: translate(30px, -30px) scale(1.1);
-  }
-  50% {
-    transform: translate(-20px, 20px) scale(0.9);
-  }
-  75% {
-    transform: translate(20px, 30px) scale(1.05);
-  }
-}
-
-/* Header */
-.app-header {
-  position: relative;
-  z-index: 10;
-  padding: 2rem 1.5rem 1rem;
-  text-align: center;
-}
-
-.header-content {
-  margin-bottom: 2rem;
-}
-
-.app-title {
-  font-family: 'Quicksand', sans-serif;
-  font-size: 3rem;
-  font-weight: 700;
-  color: white;
-  margin: 0;
-  text-shadow: 0 4px 20px rgba(255, 105, 180, 0.5);
-  display: inline-flex;
+/* Top Section */
+.top-section {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr 1fr;
   align-items: center;
-  gap: 0.75rem;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: 32px;
+  padding: 8px 16px;
+  box-shadow: 0 8px 32px rgba(255, 105, 180, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  flex-shrink: 0;
 }
 
-.title-emoji {
-  font-size: 3rem;
-  animation: rotate 3s linear infinite;
+/* Main Grid */
+.main-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.1fr;
+  gap: 12px;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
 }
 
-@keyframes rotate {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+.left-col, .right-col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
 }
 
-.header-subtitle {
-  font-size: 1rem;
-  color: rgba(255, 255, 255, 0.6);
-  margin-top: 0.5rem;
-  font-weight: 400;
+/* Glass Panels */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: 28px;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 6px 20px rgba(255, 140, 200, 0.1);
 }
 
-/* Tab Navigation */
-.tab-nav {
-  display: inline-flex;
-  gap: 0.5rem;
-  background: rgba(255, 255, 255, 0.05);
-  padding: 0.5rem;
-  border-radius: 2rem;
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+.tasks-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
 }
 
-.tab-btn {
+.stats-panel, .settings-panel, .recent-panel {
+  flex-shrink: 0;
+}
+
+/* Scrollable Area */
+.scrollable-y {
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: #ffb3c6 rgba(255, 255, 255, 0.3);
+  flex: 1;
+  min-height: 0;
+  margin-top: 8px;
+}
+
+.scrollable-y::-webkit-scrollbar {
+  width: 4px;
+}
+
+.scrollable-y::-webkit-scrollbar-track {
+  background: rgba(255, 200, 220, 0.2);
+  border-radius: 8px;
+}
+
+.scrollable-y::-webkit-scrollbar-thumb {
+  background: #ffb3c6;
+  border-radius: 8px;
+}
+
+/* ---------- MODE CHIPS ---------- */
+.mode-chips {
+  display: flex;
+  gap: 6px;
+}
+
+.chip {
+  padding: 6px 14px;
+  border-radius: 40px;
+  background: rgba(255, 255, 255, 0.5);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #5e4b6e;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.chip.active {
+  background: #ff85b3;
+  color: white;
+  border-color: #ff85b3;
+  box-shadow: 0 4px 12px rgba(255, 133, 179, 0.4);
+}
+
+.chip .icon {
+  margin-right: 4px;
+}
+
+/* ---------- TIMER RING ---------- */
+.compact-timer-ring {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1.5rem;
-  border: none;
-  border-radius: 1.5rem;
-  background: transparent;
-  color: rgba(255, 255, 255, 0.6);
-  font-family: 'Poppins', sans-serif;
-  font-size: 0.95rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  justify-content: center;
+  gap: 16px;
+}
+
+.ring-container {
+  position: relative;
+  width: 110px;
+  height: 110px;
+}
+
+.ring-bg {
+  stroke: rgba(255, 190, 210, 0.4);
+}
+
+.ring-progress {
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.5s linear;
+}
+
+.timer-digits {
+  position: absolute;
+  top: 45%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-family: 'Quicksand', sans-serif;
+  font-size: 2.1rem;
+  font-weight: 700;
+  color: #4a3f5e;
+  line-height: 1;
+}
+
+.timer-label {
+  position: absolute;
+  top: 70%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 0.7rem;
+  color: #6b5b7e;
+  letter-spacing: 1px;
+  text-transform: uppercase;
   white-space: nowrap;
 }
 
-.tab-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.9);
+/* ---------- BUTTONS ---------- */
+.button-group {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
 }
 
-.tab-btn.active {
-  background: linear-gradient(135deg, rgba(255, 105, 180, 0.3), rgba(110, 197, 233, 0.3));
+.btn-timer {
+  background: #ff85b3;
+  border: none;
   color: white;
-  box-shadow: 0 4px 20px rgba(255, 105, 180, 0.3);
-}
-
-.tab-icon {
-  font-size: 1.2rem;
-}
-
-/* Main Content */
-.app-main {
-  position: relative;
-  z-index: 10;
-  padding: 2rem 1.5rem 4rem;
-  min-height: calc(100vh - 250px);
-}
-
-.content-container {
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.tab-content {
-  animation: fadeIn 0.4s ease;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.timer-section {
-  max-width: 600px;
-  margin: 0 auto;
-  padding: 2rem;
-  background: rgba(255, 255, 255, 0.03);
-  border-radius: 2rem;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(20px);
-}
-
-/* Footer */
-.app-footer {
-  position: relative;
-  z-index: 10;
-  padding: 2rem 1.5rem;
-  text-align: center;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.footer-text {
-  font-size: 0.9rem;
-  color: rgba(255, 255, 255, 0.6);
-  margin: 0 0 0.5rem 0;
-}
-
-.footer-link {
-  color: #FF69B4;
-  text-decoration: none;
+  padding: 10px 20px;
+  border-radius: 40px;
   font-weight: 600;
-  transition: all 0.3s ease;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 6px 0 #d46b91;
+  transition: all 0.08s linear;
+  cursor: pointer;
 }
 
-.footer-link:hover {
-  color: #FF1493;
-  text-decoration: underline;
+.btn-timer:active {
+  transform: translateY(6px);
+  box-shadow: 0 1px 0 #d46b91;
 }
 
-.footer-subtext {
-  font-size: 0.8rem;
-  color: rgba(255, 255, 255, 0.4);
+.btn-secondary {
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid #ffe2eb;
+  color: #5e4b6e;
+  padding: 10px 18px;
+  border-radius: 40px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-secondary:hover {
+  background: white;
+  border-color: #ff85b3;
+}
+
+/* ---------- TASK MANAGER ---------- */
+.task-mini-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.panel-title {
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #5e4b6e;
   margin: 0;
 }
 
-/* Responsive Design */
-@media (max-width: 768px) {
-  .app-header {
-    padding: 1.5rem 1rem 1rem;
-  }
+.task-badge {
+  background: #ffb3c6;
+  padding: 2px 8px;
+  border-radius: 40px;
+  font-size: 0.8rem;
+  color: #4a3f5e;
+}
 
-  .app-title {
-    font-size: 2rem;
-  }
+.completion-badge {
+  background: #e1f0e8;
+  padding: 4px 10px;
+  border-radius: 40px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #2d6a4f;
+}
 
-  .title-emoji {
-    font-size: 2rem;
-  }
+.task-input-row {
+  display: flex;
+  gap: 8px;
+}
 
-  .header-subtitle {
-    font-size: 0.9rem;
-  }
+.task-mini-input {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255, 200, 220, 0.8);
+  border-radius: 40px;
+  padding: 10px 16px;
+  font-size: 0.85rem;
+  color: #2d2d4a;
+  transition: all 0.2s ease;
+}
 
-  .tab-nav {
-    flex-wrap: wrap;
+.task-mini-input:focus {
+  outline: none;
+  border-color: #ff69b4;
+  background: white;
+  box-shadow: 0 0 0 3px rgba(255, 105, 180, 0.1);
+}
+
+.btn-add {
+  width: 40px;
+  height: 40px;
+  border-radius: 40px;
+  background: linear-gradient(145deg, #ff85b3, #ff9ec0);
+  border: none;
+  color: white;
+  font-size: 1.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(255, 133, 179, 0.4);
+  transition: all 0.2s ease;
+}
+
+.btn-add:hover {
+  transform: scale(1.05);
+}
+
+.task-list-container {
+  margin-top: 8px;
+  padding-right: 4px;
+}
+
+.task-list-mini {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.task-item-mini {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 40px;
+  font-size: 0.8rem;
+  transition: all 0.2s ease;
+}
+
+.task-item-mini:hover {
+  background: rgba(255, 255, 255, 0.9);
+  transform: translateX(4px);
+}
+
+.task-check {
+  width: 20px;
+  height: 20px;
+  border-radius: 20px;
+  border: 2px solid #ffb6c1;
+  background: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.task-check.done {
+  background: #77dd77;
+  border-color: #77dd77;
+  color: white;
+}
+
+.task-title {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.task-title.completed {
+  text-decoration: line-through;
+  color: #888;
+}
+
+.task-delete-btn {
+  background: none;
+  border: none;
+  color: #ff9494;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 20px;
+  transition: all 0.2s ease;
+}
+
+.task-delete-btn:hover {
+  background: rgba(255, 148, 148, 0.1);
+  transform: scale(1.1);
+}
+
+.empty-tasks {
+  padding: 20px;
+  text-align: center;
+  color: #aaa;
+  font-size: 0.9rem;
+}
+
+/* ---------- STATS PANEL ---------- */
+.panel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.panel-icon {
+  font-size: 1.4rem;
+}
+
+.stats-micro-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.stat-bubble {
+  background: white;
+  border-radius: 20px;
+  padding: 12px 8px;
+  text-align: center;
+  border: 1px solid rgba(255, 210, 220, 0.6);
+}
+
+.stat-number {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #ff69b4;
+  line-height: 1;
+  font-family: 'Quicksand', sans-serif;
+}
+
+.stat-label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #6b5b7e;
+}
+
+.weekly-progress-container {
+  margin-top: 8px;
+}
+
+.progress-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  color: #6b5b7e;
+  margin-bottom: 4px;
+}
+
+.weekly-progress {
+  background: rgba(255, 240, 245, 0.7);
+  border-radius: 40px;
+  height: 10px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 10px;
+  border-radius: 40px;
+  background: linear-gradient(90deg, #ffb3c6, #ff9eb5);
+  width: 0%;
+  transition: width 0.3s ease;
+}
+
+.streak-info {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+  font-size: 0.7rem;
+  color: #9370db;
+}
+
+/* ---------- SETTINGS PANEL ---------- */
+.settings-mini-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 8px;
+  align-items: center;
+}
+
+.toggle-mini {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+}
+
+.toggle-switch {
+  width: 40px;
+  height: 22px;
+  background: rgba(200, 200, 220, 0.5);
+  border-radius: 40px;
+  position: relative;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.toggle-switch.active {
+  background: #ff85b3;
+}
+
+.toggle-slider {
+  width: 18px;
+  height: 18px;
+  background: white;
+  border-radius: 18px;
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.toggle-switch.active .toggle-slider {
+  left: 20px;
+}
+
+.duration-badges {
+  display: flex;
+  gap: 12px;
+  margin-top: 14px;
+  font-size: 0.7rem;
+  color: #7a6a8a;
+  padding-top: 8px;
+  border-top: 1px solid rgba(0,0,0,0.05);
+}
+
+/* ---------- RECENT SESSIONS PANEL ---------- */
+.recent-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.recent-badge {
+  background: #ffe4ed;
+  padding: 2px 8px;
+  border-radius: 40px;
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: #6b5b7e;
+  margin-left: auto;
+}
+
+.recent-sessions-list {
+  display: flex;
+  gap: 12px;
+  margin-top: 4px;
+  font-size: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.recent-session-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.5);
+  padding: 4px 10px;
+  border-radius: 40px;
+}
+
+.no-sessions {
+  color: #aaa;
+  font-size: 0.75rem;
+  padding: 4px 0;
+}
+
+/* ---------- RESPONSIVE ---------- */
+@media (max-width: 800px) {
+  .main-grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr 1fr;
+  }
+  
+  .top-section {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+    gap: 8px;
+  }
+  
+  .mode-chips {
     justify-content: center;
   }
-
-  .tab-btn {
-    padding: 0.625rem 1.25rem;
-    font-size: 0.875rem;
+  
+  .button-group {
+    justify-content: center;
   }
-
-  .tab-label {
-    display: none;
-  }
-
-  .tab-icon {
-    font-size: 1.3rem;
-  }
-
-  .app-main {
-    padding: 1.5rem 1rem 3rem;
-  }
-
-  .timer-section {
-    padding: 1.5rem;
-  }
-
-  .candy-bubble {
-    filter: blur(40px);
+  
+  .timer-digits {
+    font-size: 1.8rem;
   }
 }
 
 @media (max-width: 480px) {
-  .app-title {
-    font-size: 1.75rem;
+  .dashboard {
+    padding: 8px;
   }
-
-  .timer-section {
-    padding: 1rem;
+  
+  .glass-panel {
+    padding: 12px;
   }
-
-  .tab-btn {
-    padding: 0.5rem 1rem;
+  
+  .stat-number {
+    font-size: 1.4rem;
+  }
+  
+  .settings-mini-row {
+    gap: 12px;
   }
 }
 </style>
