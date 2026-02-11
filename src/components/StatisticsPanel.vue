@@ -1,301 +1,540 @@
 <template>
-  <div class="stats-panel">
-    <h2 class="text-2xl font-bold text-candy-blue mb-6 flex items-center gap-2">
-      📊 Statistics Dashboard
-    </h2>
-    
-    <!-- Stats Grid -->
-    <div class="grid grid-cols-2 gap-4 mb-8">
-      <div class="stat-card">
-        <div class="stat-value text-candy-pink">{{ stats.today.focusTime }}</div>
-        <div class="stat-label">Focus Minutes</div>
+  <div class="statistics-panel">
+    <div class="stats-header">
+      <h2 class="section-title">
+        <span class="title-icon">📊</span>
+        Statistics
+      </h2>
+      <button @click="refreshStats" class="refresh-btn" title="Refresh statistics">
+        <span>🔄</span>
+      </button>
+    </div>
+
+    <!-- Today's Summary Cards -->
+    <div class="stats-cards">
+      <div class="stat-card pink-card">
+        <div class="card-icon">🎯</div>
+        <div class="card-content">
+          <div class="card-value">{{ todayFocusMinutes }}</div>
+          <div class="card-label">Minutes Today</div>
+        </div>
       </div>
-      
-      <div class="stat-card">
-        <div class="stat-value text-candy-blue">{{ stats.today.sessions }}</div>
-        <div class="stat-label">Sessions</div>
+
+      <div class="stat-card blue-card">
+        <div class="card-icon">⚡</div>
+        <div class="card-content">
+          <div class="card-value">{{ todaySessionCount }}</div>
+          <div class="card-label">Sessions Today</div>
+        </div>
       </div>
-      
-      <div class="stat-card">
-        <div class="stat-value text-candy-green">{{ stats.today.tasksCompleted }}</div>
-        <div class="stat-label">Tasks Done</div>
-      </div>
-      
-      <div class="stat-card">
-        <div class="stat-value text-candy-yellow">{{ stats.today.productivity }}%</div>
-        <div class="stat-label">Productivity</div>
+
+      <div class="stat-card purple-card">
+        <div class="card-icon">🌟</div>
+        <div class="card-content">
+          <div class="card-value">{{ productivityPercentage }}%</div>
+          <div class="card-label">Productivity</div>
+        </div>
       </div>
     </div>
-    
-    <!-- Weekly Chart -->
-    <div class="mb-8">
-      <h3 class="text-lg font-semibold text-gray-300 mb-4">Weekly Focus Time</h3>
-      <div class="chart-container">
-        <canvas ref="chartCanvas"></canvas>
+
+    <!-- Weekly Progress Bar -->
+    <div class="progress-section">
+      <div class="progress-header">
+        <span class="progress-label">Weekly Goal</span>
+        <span class="progress-value">{{ weeklyFocusMinutes }} / 2400 min</span>
+      </div>
+      <div class="progress-bar-container">
+        <div class="progress-bar" :style="{ width: weeklyGoalProgress + '%' }">
+          <div class="progress-shine"></div>
+        </div>
+      </div>
+      <div class="progress-text">{{ weeklyGoalProgress }}% Complete</div>
+    </div>
+
+    <!-- Charts -->
+    <div class="charts-container">
+      <!-- Focus Minutes Chart -->
+      <div class="chart-card">
+        <h3 class="chart-title">📈 Weekly Focus Time</h3>
+        <div class="chart-wrapper">
+          <canvas ref="focusChartCanvas"></canvas>
+        </div>
+      </div>
+
+      <!-- Sessions Chart -->
+      <div class="chart-card">
+        <h3 class="chart-title">📅 Daily Sessions</h3>
+        <div class="chart-wrapper">
+          <canvas ref="sessionsChartCanvas"></canvas>
+        </div>
       </div>
     </div>
-    
+
     <!-- Recent Sessions -->
-    <div>
-      <h3 class="text-lg font-semibold text-gray-300 mb-4">Recent Sessions</h3>
-      <div class="space-y-3">
-        <div v-for="(session, index) in recentSessions" :key="index" class="session-item">
-          <div class="flex justify-between items-center">
-            <div class="flex items-center gap-2">
-              <div class="session-type" :class="session.type"></div>
-              <span class="text-white">{{ formatSessionType(session.type) }}</span>
-            </div>
-            <div class="text-candy-yellow">{{ session.duration }}min</div>
+    <div class="recent-sessions" v-if="recentSessions.length > 0">
+      <h3 class="subsection-title">Recent Sessions</h3>
+      <div class="sessions-list">
+        <div
+          v-for="session in recentSessions.slice(0, 5)"
+          :key="session.id"
+          class="session-item"
+        >
+          <div class="session-type">{{ formatSessionType(session.type) }}</div>
+          <div class="session-info">
+            <span class="session-duration">{{ session.duration }} min</span>
+            <span class="session-time">{{ formatTimeAgo(session.completedAt) }}</span>
           </div>
-          <div class="text-gray-400 text-sm mt-1">
-            {{ formatTime(session.completedAt) }}
-          </div>
-        </div>
-        
-        <div v-if="recentSessions.length === 0" class="text-center py-4 text-gray-400">
-          No sessions recorded yet. Start your first Pomodoro!
         </div>
       </div>
+    </div>
+
+    <!-- Loading State -->
+    <div class="loading-state" v-if="isLoading">
+      <div class="loading-spinner">📊</div>
+      <p>Loading statistics...</p>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, watch } from 'vue'
-import { Chart, registerables } from 'chart.js'
-import { db } from '../utils/db'
+import { ref, onMounted, onUnmounted, watch } from 'vue';
+import { Chart, registerables } from 'chart.js';
+import { useStatistics } from '../composables/useStatistics';
 
-// Register Chart.js components
-Chart.register(...registerables)
+Chart.register(...registerables);
 
-const chartCanvas = ref(null)
-let chart = null
+const {
+  isLoading,
+  todayFocusMinutes,
+  todaySessionCount,
+  weeklyFocusMinutes,
+  productivityPercentage,
+  weeklyGoalProgress,
+  chartData,
+  sessionChartData,
+  recentSessions,
+  refreshStats,
+  formatSessionType,
+  formatTimeAgo
+} = useStatistics();
 
-const stats = ref({
-  today: {
-    focusTime: 0,
-    sessions: 0,
-    tasksCompleted: 0,
-    productivity: 0
-  }
-})
+const focusChartCanvas = ref(null);
+const sessionsChartCanvas = ref(null);
+let focusChart = null;
+let sessionsChart = null;
 
-const recentSessions = ref([])
-
-const formatSessionType = (type) => {
-  const types = {
-    focus: 'Focus Session',
-    shortBreak: 'Short Break',
-    longBreak: 'Long Break'
-  }
-  return types[type] || type
-}
-
-const formatTime = (dateString) => {
-  return new Date(dateString).toLocaleTimeString([], { 
-    hour: '2-digit', 
-    minute: '2-digit' 
-  })
-}
-
-const loadStats = async () => {
-  try {
-    const allSessions = await db.getWeeklyStats()
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    
-    // Calculate today's stats
-    const todaySessions = allSessions.filter(s => {
-      const sessionDate = new Date(s.completedAt)
-      sessionDate.setHours(0, 0, 0, 0)
-      return sessionDate.getTime() === today.getTime()
-    })
-    
-    const focusToday = todaySessions
-      .filter(s => s.type === 'focus')
-      .reduce((sum, s) => sum + (s.duration || 0), 0)
-    
-    stats.value.today = {
-      focusTime: focusToday,
-      sessions: todaySessions.length,
-      tasksCompleted: todaySessions.length,
-      productivity: todaySessions.length > 0 ? Math.min(100, Math.round((focusToday / 125) * 100)) : 0
-    }
-    
-    // Get last 10 sessions for recent list
-    recentSessions.value = allSessions.slice(-10).reverse()
-  } catch (err) {
-    console.error('Error loading stats:', err)
-  }
-}
-
-const initChart = () => {
-  if (!chartCanvas.value) return
-  
-  // Destroy existing chart
-  if (chart) {
-    chart.destroy()
-  }
-  
-  // Calculate weekly data from sessions
-  const today = new Date()
-  const weeklyData = []
-  const labels = []
-  
-  for (let i = 6; i >= 0; i--) {
-    const date = new Date(today)
-    date.setDate(date.getDate() - i)
-    date.setHours(0, 0, 0, 0)
-    
-    labels.push(date.toLocaleDateString('en-US', { weekday: 'short' }))
-    weeklyData.push(0) // Will update with real data
-  }
-  
-  // Get weekly sessions and calculate daily totals
-  const dailyTotals = {}
-  recentSessions.value.forEach(session => {
-    if (session.type === 'focus') {
-      const date = new Date(session.completedAt)
-      const key = date.toLocaleDateString('en-US', { weekday: 'short' })
-      dailyTotals[key] = (dailyTotals[key] || 0) + (session.duration || 0)
-    }
-  })
-  
-  labels.forEach((label, idx) => {
-    weeklyData[idx] = dailyTotals[label] || 0
-  })
-  
-  chart = new Chart(chartCanvas.value, {
-    type: 'line',
-    data: {
-      labels: labels,
-      datasets: [{
-        label: 'Focus Time (min)',
-        data: weeklyData,
-        borderColor: '#FF69B4',
-        backgroundColor: 'rgba(255, 105, 180, 0.1)',
-        borderWidth: 3,
-        fill: true,
-        tension: 0.4,
-        pointBackgroundColor: '#6EC5E9',
-        pointBorderColor: '#fff',
-        pointBorderWidth: 2,
-        pointRadius: 5
-      }]
+const chartOptions = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: {
+      display: false
     },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: {
-          display: false
-        }
+    tooltip: {
+      backgroundColor: 'rgba(26, 26, 46, 0.95)',
+      titleColor: '#fff',
+      bodyColor: '#fff',
+      borderColor: 'rgba(255, 105, 180, 0.5)',
+      borderWidth: 1,
+      padding: 12,
+      cornerRadius: 8,
+      titleFont: {
+        family: 'Quicksand',
+        size: 14,
+        weight: 600
       },
-      scales: {
-        y: {
-          beginAtZero: true,
-          grid: {
-            color: 'rgba(255, 255, 255, 0.1)'
-          },
-          ticks: {
-            color: '#b8b8d1'
-          }
-        },
-        x: {
-          grid: {
-            color: 'rgba(255, 255, 255, 0.1)'
-          },
-          ticks: {
-            color: '#b8b8d1'
-          }
+      bodyFont: {
+        family: 'Poppins',
+        size: 13
+      }
+    }
+  },
+  scales: {
+    x: {
+      grid: {
+        color: 'rgba(255, 255, 255, 0.05)',
+        drawBorder: false
+      },
+      ticks: {
+        color: 'rgba(255, 255, 255, 0.6)',
+        font: {
+          family: 'Poppins',
+          size: 11
+        }
+      }
+    },
+    y: {
+      beginAtZero: true,
+      grid: {
+        color: 'rgba(255, 255, 255, 0.05)',
+        drawBorder: false
+      },
+      ticks: {
+        color: 'rgba(255, 255, 255, 0.6)',
+        font: {
+          family: 'Poppins',
+          size: 11
         }
       }
     }
-  })
+  }
+};
+
+function createCharts() {
+  if (!focusChartCanvas.value || !sessionsChartCanvas.value) return;
+
+  // Destroy existing charts
+  if (focusChart) focusChart.destroy();
+  if (sessionsChart) sessionsChart.destroy();
+
+  // Create Focus Time Chart
+  focusChart = new Chart(focusChartCanvas.value, {
+    type: 'line',
+    data: chartData.value,
+    options: chartOptions
+  });
+
+  // Create Sessions Chart
+  sessionsChart = new Chart(sessionsChartCanvas.value, {
+    type: 'line',
+    data: sessionChartData.value,
+    options: chartOptions
+  });
 }
 
-// Reload stats every 5 seconds for real-time updates
-let statsInterval = null
+function updateCharts() {
+  if (focusChart && chartData.value) {
+    focusChart.data = chartData.value;
+    focusChart.update();
+  }
 
-onMounted(async () => {
-  await loadStats()
-  
-  // Initialize chart after loading stats
-  setTimeout(() => {
-    initChart()
-  }, 100)
-  
-  // Poll for updates every 5 seconds
-  statsInterval = setInterval(async () => {
-    await loadStats()
-    // Reinitialize chart with new data
-    setTimeout(() => {
-      initChart()
-    }, 50)
-  }, 5000)
-})
+  if (sessionsChart && sessionChartData.value) {
+    sessionsChart.data = sessionChartData.value;
+    sessionsChart.update();
+  }
+}
+
+// Watch for data changes
+watch([chartData, sessionChartData], () => {
+  if (focusChart && sessionsChart) {
+    updateCharts();
+  }
+});
+
+onMounted(() => {
+  setTimeout(createCharts, 100); // Small delay to ensure canvas is ready
+});
 
 onUnmounted(() => {
-  if (chart) {
-    chart.destroy()
-  }
-  if (statsInterval) {
-    clearInterval(statsInterval)
-  }
-})
+  if (focusChart) focusChart.destroy();
+  if (sessionsChart) sessionsChart.destroy();
+});
 </script>
 
 <style scoped>
-.stats-panel {
-  background: #2d2d44;
-  border-radius: 1rem;
-  padding: 1.5rem;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+.statistics-panel {
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+/* Header */
+.stats-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.section-title {
+  font-family: 'Quicksand', sans-serif;
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: white;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.title-icon {
+  font-size: 1.5rem;
+}
+
+.refresh-btn {
+  width: 2.5rem;
+  height: 2.5rem;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.refresh-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  transform: rotate(180deg);
+}
+
+/* Stats Cards */
+.stats-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
 }
 
 .stat-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.5rem;
+  border-radius: 1.5rem;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-4px);
+}
+
+.pink-card {
+  background: linear-gradient(135deg, rgba(255, 105, 180, 0.2), rgba(255, 20, 147, 0.1));
+}
+
+.blue-card {
+  background: linear-gradient(135deg, rgba(110, 197, 233, 0.2), rgba(110, 197, 233, 0.1));
+}
+
+.purple-card {
+  background: linear-gradient(135deg, rgba(177, 156, 217, 0.2), rgba(177, 156, 217, 0.1));
+}
+
+.card-icon {
+  font-size: 2.5rem;
+  line-height: 1;
+}
+
+.card-content {
+  flex: 1;
+}
+
+.card-value {
+  font-family: 'Quicksand', sans-serif;
+  font-size: 2rem;
+  font-weight: 700;
+  color: white;
+  line-height: 1.2;
+}
+
+.card-label {
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.6);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 0.25rem;
+}
+
+/* Progress Section */
+.progress-section {
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.progress-label {
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.progress-value {
+  font-family: 'Quicksand', sans-serif;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.progress-bar-container {
+  height: 1.5rem;
   background: rgba(255, 255, 255, 0.05);
   border-radius: 0.75rem;
-  padding: 1rem;
+  overflow: hidden;
+  margin-bottom: 0.5rem;
+}
+
+.progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #FF69B4, #B19CD9, #6EC5E9);
+  border-radius: 0.75rem;
+  transition: width 0.5s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.progress-shine {
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  animation: shine 2s infinite;
+}
+
+@keyframes shine {
+  to { left: 100%; }
+}
+
+.progress-text {
   text-align: center;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 600;
 }
 
-.stat-value {
-  font-size: 1.875rem;
-  font-weight: bold;
-  margin-bottom: 0.25rem;
+/* Charts */
+.charts-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
 }
 
-.stat-label {
-  color: #9CA3AF;
-  font-size: 0.875rem;
+.chart-card {
+  padding: 1.5rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.chart-container {
-  height: 12rem;
+.chart-title {
+  font-family: 'Poppins', sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+  color: white;
+  margin: 0 0 1rem 0;
+}
+
+.chart-wrapper {
+  height: 200px;
+  position: relative;
+}
+
+/* Recent Sessions */
+.recent-sessions {
+  padding: 1.5rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.subsection-title {
+  font-family: 'Poppins', sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+  color: white;
+  margin: 0 0 1rem 0;
+}
+
+.sessions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
 .session-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
   background: rgba(255, 255, 255, 0.05);
-  border-radius: 0.5rem;
-  padding: 0.75rem;
+  border-radius: 0.75rem;
+  transition: all 0.2s ease;
+}
+
+.session-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateX(4px);
 }
 
 .session-type {
-  width: 0.75rem;
-  height: 0.75rem;
-  border-radius: 9999px;
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: white;
 }
 
-.session-type.focus {
-  background-color: #FF69B4;
+.session-info {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
 }
 
-.session-type.shortBreak {
-  background-color: #6EC5E9;
+.session-duration {
+  font-family: 'Quicksand', sans-serif;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
 }
 
-.session-type.longBreak {
-  background-color: #77DD77;
+.session-time {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* Loading State */
+.loading-state {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.loading-spinner {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  animation: spin 2s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .stats-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .charts-container {
+    grid-template-columns: 1fr;
+  }
+
+  .card-value {
+    font-size: 1.75rem;
+  }
+
+  .session-info {
+    flex-direction: column;
+    gap: 0.25rem;
+    align-items: flex-end;
+  }
 }
 </style>

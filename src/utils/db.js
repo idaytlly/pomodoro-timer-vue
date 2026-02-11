@@ -1,328 +1,202 @@
-import { openDB } from 'idb'
+/**
+ * IndexedDB Database Wrapper
+ * Handles persistent storage for tasks, sessions, settings, and statistics
+ */
+import { openDB } from 'idb';
 
-const DB_NAME = 'candy-pomodoro-db'
-const DB_VERSION = 2
+const DB_NAME = 'PomodoroTimerDB';
+const DB_VERSION = 1;
 
-let dbInstance = null
-
-const initDB = async () => {
-  if (dbInstance) return dbInstance
-  
-  dbInstance = await openDB(DB_NAME, DB_VERSION, {
-    upgrade(db, oldVersion, newVersion) {
-      console.log(`Upgrading database from ${oldVersion} to ${newVersion}`)
-      
-      // Create stores if they don't exist
+// Initialize IndexedDB with all required object stores
+export async function initDB() {
+  return openDB(DB_NAME, DB_VERSION, {
+    upgrade(db) {
+      // Tasks store
       if (!db.objectStoreNames.contains('tasks')) {
-        const taskStore = db.createObjectStore('tasks', { keyPath: 'id', autoIncrement: true })
-        taskStore.createIndex('createdAt', 'createdAt')
-        taskStore.createIndex('completed', 'completed')
-        taskStore.createIndex('date', 'date')
+        const taskStore = db.createObjectStore('tasks', {
+          keyPath: 'id',
+          autoIncrement: true
+        });
+        taskStore.createIndex('completed', 'completed');
+        taskStore.createIndex('createdAt', 'createdAt');
       }
-      
+
+      // Sessions store (for history tracking)
       if (!db.objectStoreNames.contains('sessions')) {
-        const sessionStore = db.createObjectStore('sessions', { keyPath: 'id', autoIncrement: true })
-        sessionStore.createIndex('date', 'date')
-        sessionStore.createIndex('type', 'type')
-        sessionStore.createIndex('createdAt', 'createdAt')
+        const sessionStore = db.createObjectStore('sessions', {
+          keyPath: 'id',
+          autoIncrement: true
+        });
+        sessionStore.createIndex('date', 'date');
+        sessionStore.createIndex('type', 'type');
       }
-      
+
+      // Settings store
       if (!db.objectStoreNames.contains('settings')) {
-        db.createObjectStore('settings', { keyPath: 'key' })
+        db.createObjectStore('settings', { keyPath: 'key' });
       }
-      
+
+      // Statistics store
       if (!db.objectStoreNames.contains('stats')) {
-        db.createObjectStore('stats', { keyPath: 'date' })
+        const statsStore = db.createObjectStore('stats', { keyPath: 'date' });
+        statsStore.createIndex('date', 'date');
       }
-    },
-  })
-  
-  return dbInstance
+    }
+  });
 }
 
-export const db = {
-  // ========== TASK OPERATIONS ==========
-  async getTasks(date = null) {
-    try {
-      const database = await initDB()
-      if (date) {
-        const tx = database.transaction('tasks', 'readonly')
-        const index = tx.store.index('date')
-        return index.getAll(date)
-      }
-      return database.getAll('tasks')
-    } catch (error) {
-      console.error('Error getting tasks:', error)
-      return []
-    }
-  },
+// ==================== TASKS CRUD ====================
+export async function addTask(task) {
+  const db = await initDB();
+  const taskData = {
+    title: task.title,
+    completed: false,
+    createdAt: new Date().toISOString(),
+    completedAt: null
+  };
+  return db.add('tasks', taskData);
+}
+
+export async function getAllTasks() {
+  const db = await initDB();
+  return db.getAll('tasks');
+}
+
+export async function updateTask(id, updates) {
+  const db = await initDB();
+  const task = await db.get('tasks', id);
+  if (!task) return null;
   
-  async addTask(task) {
-    try {
-      const database = await initDB()
-      const taskWithDate = {
-        ...task,
-        date: new Date().toISOString().split('T')[0],
-        createdAt: new Date().toISOString(),
-        completed: task.completed || false
-      }
-      return await database.add('tasks', taskWithDate)
-    } catch (error) {
-      console.error('Error adding task:', error)
-      throw error
-    }
-  },
+  const updatedTask = { ...task, ...updates };
+  await db.put('tasks', updatedTask);
+  return updatedTask;
+}
+
+export async function deleteTask(id) {
+  const db = await initDB();
+  return db.delete('tasks', id);
+}
+
+export async function toggleTaskComplete(id) {
+  const db = await initDB();
+  const task = await db.get('tasks', id);
+  if (!task) return null;
   
-  async updateTask(id, updates) {
-    try {
-      const database = await initDB()
-      const tx = database.transaction('tasks', 'readwrite')
-      const store = tx.objectStore('tasks')
-      const task = await store.get(id)
-      
-      if (task) {
-        const updatedTask = { ...task, ...updates, updatedAt: new Date().toISOString() }
-        await store.put(updatedTask)
-        await tx.done
-        return updatedTask
-      }
-      return null
-    } catch (error) {
-      console.error('Error updating task:', error)
-      throw error
-    }
-  },
+  task.completed = !task.completed;
+  task.completedAt = task.completed ? new Date().toISOString() : null;
+  await db.put('tasks', task);
+  return task;
+}
+
+// ==================== SESSIONS ====================
+export async function addSession(sessionData) {
+  const db = await initDB();
+  const session = {
+    type: sessionData.type, // 'focus', 'shortBreak', 'longBreak'
+    duration: sessionData.duration, // in minutes
+    completedAt: new Date().toISOString(),
+    date: new Date().toISOString().split('T')[0] // YYYY-MM-DD format
+  };
+  return db.add('sessions', session);
+}
+
+export async function getSessionsByDateRange(startDate, endDate) {
+  const db = await initDB();
+  const sessions = await db.getAllFromIndex('sessions', 'date');
+  return sessions.filter(session => {
+    return session.date >= startDate && session.date <= endDate;
+  });
+}
+
+export async function getRecentSessions(limit = 10) {
+  const db = await initDB();
+  const sessions = await db.getAll('sessions');
+  return sessions.slice(-limit).reverse(); // Get most recent sessions
+}
+
+// ==================== SETTINGS ====================
+export async function getSetting(key, defaultValue = null) {
+  const db = await initDB();
+  const setting = await db.get('settings', key);
+  return setting ? setting.value : defaultValue;
+}
+
+export async function setSetting(key, value) {
+  const db = await initDB();
+  return db.put('settings', { key, value });
+}
+
+export async function getAllSettings() {
+  const db = await initDB();
+  const settings = await db.getAll('settings');
+  return settings.reduce((acc, { key, value }) => {
+    acc[key] = value;
+    return acc;
+  }, {});
+}
+
+// ==================== STATISTICS ====================
+export async function updateDailyStats(date, focusMinutes) {
+  const db = await initDB();
+  const dateStr = date || new Date().toISOString().split('T')[0];
   
-  async deleteTask(id) {
-    try {
-      const database = await initDB()
-      return database.delete('tasks', id)
-    } catch (error) {
-      console.error('Error deleting task:', error)
-      throw error
-    }
-  },
-  
-  async clearCompletedTasks() {
-    try {
-      const database = await initDB()
-      const tx = database.transaction('tasks', 'readwrite')
-      const store = tx.objectStore('tasks')
-      const index = store.index('completed')
-      const completedTasks = await index.getAll(true)
-      
-      await Promise.all(completedTasks.map(task => store.delete(task.id)))
-      await tx.done
-      return completedTasks.length
-    } catch (error) {
-      console.error('Error clearing completed tasks:', error)
-      throw error
-    }
-  },
-  
-  // ========== SESSION OPERATIONS ==========
-  async addSession(session) {
-    try {
-      const database = await initDB()
-      const sessionWithDate = {
-        ...session,
-        date: new Date().toISOString().split('T')[0],
-        createdAt: new Date().toISOString(),
-        completedAt: session.completedAt || new Date().toISOString()
-      }
-      return await database.add('sessions', sessionWithDate)
-    } catch (error) {
-      console.error('Error adding session:', error)
-      throw error
-    }
-  },
-  
-  async getSessions(date = null) {
-    try {
-      const database = await initDB()
-      if (date) {
-        const tx = database.transaction('sessions', 'readonly')
-        const index = tx.store.index('date')
-        return index.getAll(date)
-      }
-      return database.getAll('sessions')
-    } catch (error) {
-      console.error('Error getting sessions:', error)
-      return []
-    }
-  },
-  
-  async getTodaySessions() {
-    try {
-      const today = new Date().toISOString().split('T')[0]
-      return this.getSessions(today)
-    } catch (error) {
-      console.error('Error getting today sessions:', error)
-      return []
-    }
-  },
-  
-  async getWeeklySessions() {
-    try {
-      const database = await initDB()
-      const sevenDaysAgo = new Date()
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
-      
-      const allSessions = await database.getAll('sessions')
-      return allSessions.filter(session => {
-        const sessionDate = new Date(session.date)
-        return sessionDate >= sevenDaysAgo
-      })
-    } catch (error) {
-      console.error('Error getting weekly sessions:', error)
-      return []
-    }
-  },
-  
-  async getWeeklyStats() {
-    try {
-      const sessions = await this.getWeeklySessions()
-      const weeklyData = new Array(7).fill(0)
-      
-      sessions.forEach(session => {
-        if (session.type === 'focus') {
-          const date = new Date(session.date)
-          const day = date.getDay()
-          weeklyData[day] += session.duration || 25
-        }
-      })
-      
-      // Reorder to start from Monday
-      return weeklyData.slice().concat(weeklyData).slice(1, 8)
-    } catch (error) {
-      console.error('Error getting weekly stats:', error)
-      return [0, 0, 0, 0, 0, 0, 0]
-    }
-  },
-  
-  // ========== STATISTICS OPERATIONS ==========
-  async getTodayStats() {
-    try {
-      const today = new Date().toISOString().split('T')[0]
-      
-      // Get today's sessions
-      const sessions = await this.getSessions(today)
-      const focusSessions = sessions.filter(s => s.type === 'focus')
-      const totalFocusTime = focusSessions.reduce((sum, s) => sum + (s.duration || 25), 0)
-      
-      // Get today's tasks
-      const tasks = await this.getTasks(today)
-      const completedTasks = tasks.filter(t => t.completed).length
-      
-      return {
-        focusTime: totalFocusTime,
-        sessions: focusSessions.length,
-        tasksCompleted: completedTasks,
-        productivity: focusSessions.length > 0 
-          ? Math.min(100, Math.floor((totalFocusTime / (focusSessions.length * 25)) * 100))
-          : 0
-      }
-    } catch (error) {
-      console.error('Error getting today stats:', error)
-      return {
-        focusTime: 0,
-        sessions: 0,
-        tasksCompleted: 0,
-        productivity: 0
-      }
-    }
-  },
-  
-  // ========== SETTINGS OPERATIONS ==========
-  async saveSettings(settings) {
-    try {
-      const database = await initDB()
-      const tx = database.transaction('settings', 'readwrite')
-      await tx.store.put({ key: 'userSettings', value: settings })
-      await tx.done
-      return settings
-    } catch (error) {
-      console.error('Error saving settings:', error)
-      throw error
-    }
-  },
-  
-  async getSettings() {
-    try {
-      const database = await initDB()
-      const settings = await database.get('settings', 'userSettings')
-      return settings ? settings.value : null
-    } catch (error) {
-      console.error('Error getting settings:', error)
-      return null
-    }
-  },
-  
-  // ========== DATA MANAGEMENT ==========
-  async clearAllData() {
-    try {
-      const database = await initDB()
-      const tx = database.transaction(['tasks', 'sessions', 'stats'], 'readwrite')
-      
-      await Promise.all([
-        tx.objectStore('tasks').clear(),
-        tx.objectStore('sessions').clear(),
-        tx.objectStore('stats').clear()
-      ])
-      
-      await tx.done
-      return true
-    } catch (error) {
-      console.error('Error clearing data:', error)
-      throw error
-    }
-  },
-  
-  async exportData() {
-    try {
-      const database = await initDB()
-      const [tasks, sessions, settings] = await Promise.all([
-        database.getAll('tasks'),
-        database.getAll('sessions'),
-        database.getAll('settings')
-      ])
-      
-      return {
-        version: DB_VERSION,
-        exportedAt: new Date().toISOString(),
-        tasks,
-        sessions,
-        settings
-      }
-    } catch (error) {
-      console.error('Error exporting data:', error)
-      throw error
-    }
-  },
-  
-  async importData(data) {
-    try {
-      await this.clearAllData()
-      const database = await initDB()
-      const tx = database.transaction(['tasks', 'sessions', 'settings'], 'readwrite')
-      
-      if (data.tasks) {
-        await Promise.all(data.tasks.map(task => tx.objectStore('tasks').add(task)))
-      }
-      
-      if (data.sessions) {
-        await Promise.all(data.sessions.map(session => tx.objectStore('sessions').add(session)))
-      }
-      
-      if (data.settings) {
-        await Promise.all(data.settings.map(setting => tx.objectStore('settings').add(setting)))
-      }
-      
-      await tx.done
-      return true
-    } catch (error) {
-      console.error('Error importing data:', error)
-      throw error
-    }
+  let stats = await db.get('stats', dateStr);
+  if (!stats) {
+    stats = {
+      date: dateStr,
+      focusMinutes: 0,
+      sessionCount: 0,
+      completedTasks: 0
+    };
   }
+  
+  stats.focusMinutes += focusMinutes;
+  stats.sessionCount += 1;
+  
+  await db.put('stats', stats);
+  return stats;
+}
+
+export async function getWeeklyStats() {
+  const db = await initDB();
+  const today = new Date();
+  const lastWeek = new Date(today);
+  lastWeek.setDate(today.getDate() - 7);
+  
+  const allStats = await db.getAll('stats');
+  return allStats.filter(stat => {
+    const statDate = new Date(stat.date);
+    return statDate >= lastWeek && statDate <= today;
+  });
+}
+
+export async function getStatsByDate(date) {
+  const db = await initDB();
+  return db.get('stats', date);
+}
+
+// ==================== UTILITY FUNCTIONS ====================
+export async function clearAllData() {
+  const db = await initDB();
+  const tx = db.transaction(['tasks', 'sessions', 'settings', 'stats'], 'readwrite');
+  
+  await Promise.all([
+    tx.objectStore('tasks').clear(),
+    tx.objectStore('sessions').clear(),
+    tx.objectStore('settings').clear(),
+    tx.objectStore('stats').clear()
+  ]);
+  
+  await tx.done;
+}
+
+export async function exportData() {
+  const db = await initDB();
+  return {
+    tasks: await db.getAll('tasks'),
+    sessions: await db.getAll('sessions'),
+    settings: await db.getAll('settings'),
+    stats: await db.getAll('stats'),
+    exportedAt: new Date().toISOString()
+  };
 }

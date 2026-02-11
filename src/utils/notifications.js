@@ -1,100 +1,87 @@
-// Enhanced notifications with IndexedDB support
-export const playSound = async (type = 'complete') => {
-  try {
-    // Check if sound is enabled in settings
-    const { db } = await import('./db.js')
-    const settings = await db.getSettings()
-    
-    if (settings && !settings.soundEnabled) {
-      return
-    }
-    
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)()
-    const oscillator = audioContext.createOscillator()
-    const gainNode = audioContext.createGain()
-    
-    oscillator.connect(gainNode)
-    gainNode.connect(audioContext.destination)
-    
-    // Different frequencies for different events
-    const frequencies = {
-      start: 523.25, // C5
-      complete: 659.25, // E5
-      alert: 783.99, // G5
-      pause: 392.00 // G4
-    }
-    
-    oscillator.frequency.value = frequencies[type] || 440
-    oscillator.type = 'sine'
-    
-    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime)
-    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5)
-    
-    oscillator.start(audioContext.currentTime)
-    oscillator.stop(audioContext.currentTime + 0.5)
-    
-  } catch (error) {
-    console.log('Audio playback not supported or failed:', error)
-    
-    // Fallback to HTML5 audio
-    try {
-      const audio = new Audio()
-      const sounds = {
-        start: 'https://assets.mixkit.co/sfx/preview/mixkit-correct-answer-tone-2870.mp3',
-        complete: 'https://assets.mixkit.co/sfx/preview/mixkit-winning-chimes-2015.mp3',
-        alert: 'https://assets.mixkit.co/sfx/preview/mixkit-alarm-digital-clock-beep-989.mp3'
-      }
-      
-      audio.src = sounds[type] || sounds.complete
-      audio.volume = 0.3
-      await audio.play()
-    } catch (fallbackError) {
-      console.log('Fallback audio also failed:', fallbackError)
-    }
+/**
+ * Desktop Notifications Handler
+ * Manages browser notification permissions and displays
+ */
+
+let notificationsEnabled = false;
+
+// Request notification permission from the user
+export async function requestNotificationPermission() {
+  if (!('Notification' in window)) {
+    console.warn('This browser does not support desktop notifications');
+    return false;
   }
+
+  if (Notification.permission === 'granted') {
+    notificationsEnabled = true;
+    return true;
+  }
+
+  if (Notification.permission !== 'denied') {
+    const permission = await Notification.requestPermission();
+    notificationsEnabled = permission === 'granted';
+    return notificationsEnabled;
+  }
+
+  return false;
 }
 
-export const notify = async (title, body) => {
-  try {
-    // Check if notifications are enabled in settings
-    const { db } = await import('./db.js')
-    const settings = await db.getSettings()
-    
-    if (settings && !settings.desktopNotifications) {
-      return
-    }
-    
-    if (!('Notification' in window)) {
-      console.log('This browser does not support notifications')
-      return
-    }
-    
-    if (Notification.permission === 'granted') {
-      new Notification(title, {
-        body,
-        icon: '/vite.svg',
-        badge: '/vite.svg',
-        tag: 'pomodoro-notification',
-        requireInteraction: false
-      })
-    } else if (Notification.permission === 'default') {
-      const permission = await Notification.requestPermission()
-      if (permission === 'granted') {
-        new Notification(title, { body })
-      }
-    }
-  } catch (error) {
-    console.error('Error showing notification:', error)
+// Show a notification
+export function showNotification(title, options = {}) {
+  if (!notificationsEnabled || Notification.permission !== 'granted') {
+    return null;
   }
+
+  const defaultOptions = {
+    icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🍬</text></svg>',
+    badge: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🍭</text></svg>',
+    requireInteraction: false,
+    silent: false,
+    ...options
+  };
+
+  return new Notification(title, defaultOptions);
 }
 
-// Vibrate if supported (for mobile)
-export const vibrate = async (pattern = [200, 100, 200]) => {
-  if ('vibrate' in navigator) {
-    try {
-      navigator.vibrate(pattern)
-    } catch (error) {
-      console.log('Vibration not supported')
-    }
-  }
+// Notification templates for different timer states
+export function notifyFocusComplete() {
+  return showNotification('🎉 Focus Session Complete!', {
+    body: 'Great work! Time for a sweet break. 🍭',
+    tag: 'pomodoro-focus-complete'
+  });
+}
+
+export function notifyBreakComplete() {
+  return showNotification('⏰ Break Time Over!', {
+    body: 'Ready to focus again? Let\'s get back to work! 💪',
+    tag: 'pomodoro-break-complete'
+  });
+}
+
+export function notifyLongBreak() {
+  return showNotification('🌟 Time for a Long Break!', {
+    body: 'You\'ve completed 4 focus sessions. Enjoy your well-deserved rest! 🍬',
+    tag: 'pomodoro-long-break'
+  });
+}
+
+// Check if notifications are supported
+export function isNotificationSupported() {
+  return 'Notification' in window;
+}
+
+// Get current notification permission status
+export function getNotificationPermission() {
+  if (!isNotificationSupported()) return 'unsupported';
+  return Notification.permission;
+}
+
+// Enable/disable notifications
+export function setNotificationsEnabled(enabled) {
+  notificationsEnabled = enabled && Notification.permission === 'granted';
+  return notificationsEnabled;
+}
+
+export function areNotificationsEnabled() {
+  return notificationsEnabled;
 }

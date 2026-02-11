@@ -1,201 +1,468 @@
 <template>
-  <div class="min-h-screen bg-gradient-to-br from-dark-bg to-gray-900">
+  <div class="app-container">
+    <!-- Animated Background -->
+    <div class="background-candy">
+      <div class="candy-bubble bubble-1"></div>
+      <div class="candy-bubble bubble-2"></div>
+      <div class="candy-bubble bubble-3"></div>
+      <div class="candy-bubble bubble-4"></div>
+      <div class="candy-bubble bubble-5"></div>
+    </div>
+
     <!-- Header -->
-    <header class="candy-gradient py-4 sm:py-6 px-3 sm:px-4 md:px-6 lg:px-8 shadow-2xl sticky top-0 z-50">
-      <div class="container mx-auto">
-        <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-4">
-          <div class="flex items-center gap-2 sm:gap-4 min-w-0">
-            <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center flex-shrink-0">
-              <span class="text-xl sm:text-2xl">🍭</span>
-            </div>
-            <div class="min-w-0">
-              <h1 class="text-xl sm:text-3xl md:text-4xl font-bold text-white truncate">
-                Candy Pomodoro
-              </h1>
-              <p class="text-white/80 mt-0.5 sm:mt-1 text-xs sm:text-sm">Vue.js 3 + IndexedDB</p>
-            </div>
-          </div>
-          
-          <div class="flex items-center gap-2 sm:gap-3">
-            <div class="hidden sm:block text-right">
-              <div class="text-white font-bold text-sm">Total Focus Time</div>
-              <div class="text-candy-yellow text-lg sm:text-2xl font-bold">{{ totalFocusTime }}m</div>
-            </div>
-            <button
-              @click="toggleSettings"
-              class="p-2 sm:p-3 rounded-xl bg-white/10 hover:bg-white/20 transition-colors flex-shrink-0"
-            >
-              <span class="text-xl sm:text-2xl">⚙️</span>
-            </button>
-          </div>
-        </div>
+    <header class="app-header">
+      <div class="header-content">
+        <h1 class="app-title">
+          <span class="title-emoji">🍭</span>
+          Candy Pomodoro
+        </h1>
+        <div class="header-subtitle">Sweet productivity, one session at a time</div>
       </div>
+      
+      <!-- Tab Navigation -->
+      <nav class="tab-nav">
+        <button
+          v-for="tab in tabs"
+          :key="tab.id"
+          @click="activeTab = tab.id"
+          :class="['tab-btn', { 'active': activeTab === tab.id }]"
+        >
+          <span class="tab-icon">{{ tab.icon }}</span>
+          <span class="tab-label">{{ tab.label }}</span>
+        </button>
+      </nav>
     </header>
 
-    <main class="container mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8 auto-rows-max lg:auto-rows-min">
-        <!-- Left Column -->
-        <div class="lg:col-span-2 space-y-4 sm:space-y-6 lg:space-y-8">
-          <TimerDisplay
-            :current-time="currentTime"
-            :timer-type="timerType"
-            :current-session="currentSession"
-            :completed-sessions="completedSessions"
-            :sessions-before-long-break="settings.sessionsBeforeLongBreak"
-            :progress="progress"
-            :stroke-dashoffset="strokeDashoffset"
-            :circumference="circumference"
-          />
-          
-          <TimerControls
-            :is-running="isRunning"
-            :is-paused="isPaused"
-            @start="startTimer"
-            @pause="pauseTimer"
-            @reset="resetTimer"
-            @skip="skipTimer"
-          />
-          
+    <!-- Main Content -->
+    <main class="app-main">
+      <div class="content-container">
+        
+        <!-- Timer Tab -->
+        <div v-show="activeTab === 'timer'" class="tab-content">
+          <div class="timer-section">
+            <TimerDisplay
+              :minutes="minutes"
+              :seconds="seconds"
+              :currentMode="currentMode"
+              :timerState="timerState"
+              :strokeDashoffset="strokeDashoffset"
+              :circumference="circumference"
+              :sessionDots="sessionDots"
+              @switchMode="switchMode"
+            />
+            
+            <TimerControls
+              :timerState="timerState"
+              :currentMode="currentMode"
+              @start="startTimer"
+              @pause="pauseTimer"
+              @reset="resetTimer"
+              @skip="skipSession"
+            />
+          </div>
+        </div>
+
+        <!-- Tasks Tab -->
+        <div v-show="activeTab === 'tasks'" class="tab-content">
           <TaskManager />
         </div>
 
-        <!-- Right Column -->
-        <div class="space-y-4 sm:space-y-6 lg:space-y-8">
-          <!-- Statistics Panel -->
-          <div class="candy-card min-h-72 sm:min-h-80 lg:min-h-96 w-full flex flex-col items-center justify-center">
-            <StatisticsPanel />
-          </div>
-          
-          <!-- Settings Panel -->
-          <div v-if="showSettings" class="candy-card w-full">
-            <SettingsPanel 
-              :settings="settings"
-              @update="updateSettings"
-              @close="showSettings = false"
-            />
-          </div>
+        <!-- Statistics Tab -->
+        <div v-show="activeTab === 'stats'" class="tab-content">
+          <StatisticsPanel />
+        </div>
+
+        <!-- Settings Tab -->
+        <div v-show="activeTab === 'settings'" class="tab-content">
+          <SettingsPanel
+            :focusDuration="focusDuration"
+            :shortBreakDuration="shortBreakDuration"
+            :longBreakDuration="longBreakDuration"
+            :autoStartBreaks="autoStartBreaks"
+            :autoStartPomodoros="autoStartPomodoros"
+            :soundEnabled="soundEnabled"
+            :notificationsEnabled="notificationsEnabled"
+            @updateSettings="updateSettings"
+          />
         </div>
       </div>
     </main>
 
     <!-- Footer -->
-    <footer class="mt-8 sm:mt-12 py-4 sm:py-6 px-3 sm:px-4 md:px-6 lg:px-8 border-t border-white/10">
-      <div class="container mx-auto text-center text-gray-400 text-xs sm:text-sm">
-        <p>Built with Vue.js 3, Chart.js, and IndexedDB • Candy Pomodoro Timer v1.0</p>
-        <p class="mt-1 sm:mt-2 text-xs text-gray-500">Works offline • Data stored locally • No tracking</p>
-      </div>
+    <footer class="app-footer">
+      <p class="footer-text">
+        Made with 💖 by <a href="https://github.com/idayatullailiyeh" target="_blank" rel="noopener" class="footer-link">Ida Yatullailiyeh</a>
+      </p>
+      <p class="footer-subtext">Vue.js • Chart.js • IndexedDB</p>
     </footer>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted } from 'vue'
-import TimerDisplay from './components/TimerDisplay.vue'
-import TimerControls from './components/TimerControls.vue'
-import TaskManager from './components/TaskManager.vue'
-import StatisticsPanel from './components/StatisticsPanel.vue'
-import SettingsPanel from './components/SettingsPanel.vue'
-import useTimer from './composables/useTimer'
-import { db } from './utils/db'
+import { ref } from 'vue';
+import { useTimer } from './composables/useTimer';
+import TimerDisplay from './components/TimerDisplay.vue';
+import TimerControls from './components/TimerControls.vue';
+import TaskManager from './components/TaskManager.vue';
+import StatisticsPanel from './components/StatisticsPanel.vue';
+import SettingsPanel from './components/SettingsPanel.vue';
 
-// Settings
-const settings = reactive({
-  focusTime: 25,
-  shortBreak: 5,
-  longBreak: 15,
-  sessionsBeforeLongBreak: 4,
-  autoStartBreaks: true,
-  autoStartPomodoros: true,
-  desktopNotifications: true,
-  soundEnabled: true
-})
-
-const showSettings = ref(false)
-const totalFocusTime = ref(0)
-
-// Use timer composable
-const timer = useTimer(settings)
+// Timer composable
 const {
-  isRunning,
-  isPaused,
-  currentTime,
-  timerType,
-  currentSession,
-  completedSessions,
-  progress,
+  timerState,
+  currentMode,
+  minutes,
+  seconds,
   strokeDashoffset,
   circumference,
+  sessionDots,
+  focusDuration,
+  shortBreakDuration,
+  longBreakDuration,
+  autoStartBreaks,
+  autoStartPomodoros,
+  soundEnabled,
+  notificationsEnabled,
   startTimer,
   pauseTimer,
   resetTimer,
-  skipTimer,
-  loadTimerState
-} = timer
+  skipSession,
+  switchMode,
+  updateSettings
+} = useTimer();
 
-// Real-time update interval
-let focusTimeInterval = null
-
-// Request notification permission
-if ('Notification' in window && Notification.permission === 'default') {
-  Notification.requestPermission().catch(err => console.log('Notification permission error:', err))
-}
-
-// Load settings from IndexedDB
-const loadSettings = async () => {
-  try {
-    const savedSettings = await db.getSettings()
-    if (savedSettings) {
-      Object.assign(settings, savedSettings)
-    }
-  } catch (err) {
-    console.log('Error loading settings:', err)
-  }
-}
-
-const toggleSettings = () => {
-  showSettings.value = !showSettings.value
-}
-
-const updateSettings = async (newSettings) => {
-  try {
-    Object.assign(settings, newSettings)
-    await db.saveSettings(settings)
-  } catch (err) {
-    console.error('Error updating settings:', err)
-  }
-}
-
-// Calculate total focus time
-const calculateTotalFocusTime = async () => {
-  try {
-    const sessions = await db.getWeeklyStats()
-    totalFocusTime.value = sessions
-      .filter(s => s.type === 'focus')
-      .reduce((sum, s) => sum + (s.duration || 0), 0)
-  } catch (err) {
-    console.log('Error calculating focus time:', err)
-  }
-}
-
-onMounted(async () => {
-  try {
-    await loadSettings()
-    await loadTimerState()
-    await calculateTotalFocusTime()
-    console.log('App mounted successfully!')
-    
-    // Update total focus time every 5 seconds for real-time display
-    focusTimeInterval = setInterval(() => {
-      calculateTotalFocusTime()
-    }, 5000)
-  } catch (err) {
-    console.error('Error during app initialization:', err)
-  }
-})
-
-onUnmounted(() => {
-  if (focusTimeInterval) {
-    clearInterval(focusTimeInterval)
-  }
-})
+// Tab navigation
+const activeTab = ref('timer');
+const tabs = [
+  { id: 'timer', icon: '⏱️', label: 'Timer' },
+  { id: 'tasks', icon: '✨', label: 'Tasks' },
+  { id: 'stats', icon: '📊', label: 'Stats' },
+  { id: 'settings', icon: '⚙️', label: 'Settings' }
+];
 </script>
+
+<style>
+/* Global Styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#app {
+  min-height: 100vh;
+  width: 100%;
+}
+</style>
+
+<style scoped>
+.app-container {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* Animated Candy Background */
+.background-candy {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.candy-bubble {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.15;
+  animation: float 20s infinite ease-in-out;
+}
+
+.bubble-1 {
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, #FF69B4, transparent);
+  top: 10%;
+  left: 10%;
+  animation-delay: 0s;
+}
+
+.bubble-2 {
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(circle, #6EC5E9, transparent);
+  top: 60%;
+  right: 10%;
+  animation-delay: -5s;
+}
+
+.bubble-3 {
+  width: 350px;
+  height: 350px;
+  background: radial-gradient(circle, #B19CD9, transparent);
+  bottom: 20%;
+  left: 5%;
+  animation-delay: -10s;
+}
+
+.bubble-4 {
+  width: 250px;
+  height: 250px;
+  background: radial-gradient(circle, #FFD700, transparent);
+  top: 40%;
+  right: 30%;
+  animation-delay: -15s;
+}
+
+.bubble-5 {
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(circle, #77DD77, transparent);
+  top: 70%;
+  left: 40%;
+  animation-delay: -7s;
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+  }
+  25% {
+    transform: translate(30px, -30px) scale(1.1);
+  }
+  50% {
+    transform: translate(-20px, 20px) scale(0.9);
+  }
+  75% {
+    transform: translate(20px, 30px) scale(1.05);
+  }
+}
+
+/* Header */
+.app-header {
+  position: relative;
+  z-index: 10;
+  padding: 2rem 1.5rem 1rem;
+  text-align: center;
+}
+
+.header-content {
+  margin-bottom: 2rem;
+}
+
+.app-title {
+  font-family: 'Quicksand', sans-serif;
+  font-size: 3rem;
+  font-weight: 700;
+  color: white;
+  margin: 0;
+  text-shadow: 0 4px 20px rgba(255, 105, 180, 0.5);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.title-emoji {
+  font-size: 3rem;
+  animation: rotate 3s linear infinite;
+}
+
+@keyframes rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.header-subtitle {
+  font-size: 1rem;
+  color: rgba(255, 255, 255, 0.6);
+  margin-top: 0.5rem;
+  font-weight: 400;
+}
+
+/* Tab Navigation */
+.tab-nav {
+  display: inline-flex;
+  gap: 0.5rem;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 0.5rem;
+  border-radius: 2rem;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 1.5rem;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.6);
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  white-space: nowrap;
+}
+
+.tab-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.tab-btn.active {
+  background: linear-gradient(135deg, rgba(255, 105, 180, 0.3), rgba(110, 197, 233, 0.3));
+  color: white;
+  box-shadow: 0 4px 20px rgba(255, 105, 180, 0.3);
+}
+
+.tab-icon {
+  font-size: 1.2rem;
+}
+
+/* Main Content */
+.app-main {
+  position: relative;
+  z-index: 10;
+  padding: 2rem 1.5rem 4rem;
+  min-height: calc(100vh - 250px);
+}
+
+.content-container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.tab-content {
+  animation: fadeIn 0.4s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.timer-section {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 2rem;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 2rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(20px);
+}
+
+/* Footer */
+.app-footer {
+  position: relative;
+  z-index: 10;
+  padding: 2rem 1.5rem;
+  text-align: center;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.footer-text {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.6);
+  margin: 0 0 0.5rem 0;
+}
+
+.footer-link {
+  color: #FF69B4;
+  text-decoration: none;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.footer-link:hover {
+  color: #FF1493;
+  text-decoration: underline;
+}
+
+.footer-subtext {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.4);
+  margin: 0;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .app-header {
+    padding: 1.5rem 1rem 1rem;
+  }
+
+  .app-title {
+    font-size: 2rem;
+  }
+
+  .title-emoji {
+    font-size: 2rem;
+  }
+
+  .header-subtitle {
+    font-size: 0.9rem;
+  }
+
+  .tab-nav {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .tab-btn {
+    padding: 0.625rem 1.25rem;
+    font-size: 0.875rem;
+  }
+
+  .tab-label {
+    display: none;
+  }
+
+  .tab-icon {
+    font-size: 1.3rem;
+  }
+
+  .app-main {
+    padding: 1.5rem 1rem 3rem;
+  }
+
+  .timer-section {
+    padding: 1.5rem;
+  }
+
+  .candy-bubble {
+    filter: blur(40px);
+  }
+}
+
+@media (max-width: 480px) {
+  .app-title {
+    font-size: 1.75rem;
+  }
+
+  .timer-section {
+    padding: 1rem;
+  }
+
+  .tab-btn {
+    padding: 0.5rem 1rem;
+  }
+}
+</style>

@@ -1,200 +1,277 @@
-import { ref, computed, onUnmounted, watch } from 'vue'
-import { db } from '../utils/db'
-import { playSound, notify } from '../utils/notifications'
+/**
+ * Timer Composable - Core Pomodoro Timer Logic
+ * Manages timer state, countdown, and session transitions
+ */
+import { ref, computed, onUnmounted } from 'vue';
+import { addSession, getSetting, setSetting, updateDailyStats } from '../utils/db';
+import { 
+  playCompletionSound, 
+  playNotificationSound,
+  resumeAudioContext 
+} from '../utils/audio';
+import {
+  notifyFocusComplete,
+  notifyBreakComplete,
+  notifyLongBreak
+} from '../utils/notifications';
 
-export default function useTimer(settings) {
-  // Timer state
-  const isRunning = ref(false)
-  const isPaused = ref(false)
-  const currentTime = ref(25 * 60) // 25 minutes in seconds
-  const timerType = ref('focus') // 'focus' | 'shortBreak' | 'longBreak'
-  const currentSession = ref(1)
-  const completedSessions = ref(0)
+export function useTimer() {
+  // Timer State
+  const timerState = ref('idle'); // 'idle', 'running', 'paused'
+  const currentMode = ref('focus'); // 'focus', 'shortBreak', 'longBreak'
+  const timeRemaining = ref(25 * 60); // seconds
+  const completedSessions = ref(0);
   
-  let timerInterval = null
+  // Settings with defaults
+  const focusDuration = ref(25); // minutes
+  const shortBreakDuration = ref(5);
+  const longBreakDuration = ref(15);
+  const autoStartBreaks = ref(false);
+  const autoStartPomodoros = ref(false);
+  const soundEnabled = ref(true);
+  const notificationsEnabled = ref(true);
   
-  // Computed properties
-  const displayTime = computed(() => {
-    const minutes = Math.floor(currentTime.value / 60)
-    const seconds = currentTime.value % 60
-    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
-  })
+  let timerInterval = null;
+
+  // Computed Properties
+  const minutes = computed(() => Math.floor(timeRemaining.value / 60));
+  const seconds = computed(() => timeRemaining.value % 60);
   
   const progress = computed(() => {
-    const totalTime = timerType.value === 'focus' ? settings.focusTime * 60 :
-                     timerType.value === 'shortBreak' ? settings.shortBreak * 60 :
-                     settings.longBreak * 60
-    return 1 - (currentTime.value / totalTime)
-  })
-  
-  const circumference = 2 * Math.PI * 138
-  const strokeDashoffset = computed(() => circumference - (progress.value * circumference))
-  
-  // Timer methods
-  const startTimer = () => {
-    if (!isRunning.value) {
-      isRunning.value = true
-      isPaused.value = false
-      
-      timerInterval = setInterval(() => {
-        if (currentTime.value > 0) {
-          currentTime.value--
-        } else {
-          completeTimer()
-        }
-      }, 1000)
+    const totalSeconds = getDurationInSeconds(currentMode.value);
+    return ((totalSeconds - timeRemaining.value) / totalSeconds) * 100;
+  });
+
+  const circumference = 339.292; // 2 * PI * radius (54)
+  const strokeDashoffset = computed(() => {
+    return circumference - (progress.value / 100) * circumference;
+  });
+
+  const sessionDots = computed(() => {
+    return Array.from({ length: 4 }, (_, i) => i < (completedSessions.value % 4));
+  });
+
+  // Helper Functions
+  function getDurationInSeconds(mode) {
+    switch (mode) {
+      case 'focus':
+        return focusDuration.value * 60;
+      case 'shortBreak':
+        return shortBreakDuration.value * 60;
+      case 'longBreak':
+        return longBreakDuration.value * 60;
+      default:
+        return focusDuration.value * 60;
     }
   }
-  
-  const pauseTimer = () => {
-    if (isRunning.value) {
-      isRunning.value = false
-      isPaused.value = true
-      clearInterval(timerInterval)
+
+  function getNextMode() {
+    if (currentMode.value === 'focus') {
+      const nextSession = completedSessions.value + 1;
+      return nextSession % 4 === 0 ? 'longBreak' : 'shortBreak';
     }
+    return 'focus';
   }
-  
-  const resetTimer = () => {
-    isRunning.value = false
-    isPaused.value = false
-    clearInterval(timerInterval)
-    resetToCurrentType()
-  }
-  
-  const skipTimer = () => {
-    completeTimer()
-  }
-  
-  const completeTimer = async () => {
-    clearInterval(timerInterval)
-    isRunning.value = false
-    isPaused.value = false
+
+  // Timer Controls
+  function startTimer() {
+    if (timerState.value === 'running') return;
     
-    // Save session to IndexedDB
-    await db.addSession({
-      type: timerType.value,
-      duration: timerType.value === 'focus' ? settings.focusTime : 
-               timerType.value === 'shortBreak' ? settings.shortBreak : 
-               settings.longBreak,
-      completedAt: new Date().toISOString()
-    })
+    timerState.value = 'running';
+    resumeAudioContext(); // Resume audio context on user interaction
     
-    // Update session count for focus sessions
-    if (timerType.value === 'focus') {
-      completedSessions.value++
-    }
-    
-    // Play sound and notify
-    if (settings.soundEnabled) {
-      playSound('complete')
-    }
-    
-    if (settings.desktopNotifications) {
-      notify(
-        timerType.value === 'focus' ? 'Focus session complete!' : 'Break time over!',
-        timerType.value === 'focus' ? 'Time for a break!' : 'Ready to focus again?'
-      )
-    }
-    
-    // Switch to next timer
-    switchToNextTimer()
-  }
-  
-  const switchToNextTimer = () => {
-    if (timerType.value === 'focus') {
-      currentSession.value++
-      
-      if (currentSession.value > settings.sessionsBeforeLongBreak) {
-        timerType.value = 'longBreak'
-        currentSession.value = 1
+    timerInterval = setInterval(() => {
+      if (timeRemaining.value > 0) {
+        timeRemaining.value--;
       } else {
-        timerType.value = 'shortBreak'
+        completeSession();
       }
-    } else {
-      timerType.value = 'focus'
-    }
+    }, 1000);
+  }
+
+  function pauseTimer() {
+    if (timerState.value !== 'running') return;
     
-    resetToCurrentType()
-    
-    // Auto-start next timer if enabled
-    const shouldAutoStart = (timerType.value === 'shortBreak' && settings.autoStartBreaks) ||
-                           (timerType.value === 'longBreak' && settings.autoStartBreaks) ||
-                           (timerType.value === 'focus' && settings.autoStartPomodoros)
-    
-    if (shouldAutoStart) {
-      setTimeout(() => startTimer(), 1000)
+    timerState.value = 'paused';
+    if (timerInterval) {
+      clearInterval(timerInterval);
+      timerInterval = null;
     }
   }
-  
-  const resetToCurrentType = () => {
-    currentTime.value = timerType.value === 'focus' ? settings.focusTime * 60 :
-                       timerType.value === 'shortBreak' ? settings.shortBreak * 60 :
-                       settings.longBreak * 60
+
+  function resetTimer() {
+    pauseTimer();
+    timerState.value = 'idle';
+    timeRemaining.value = getDurationInSeconds(currentMode.value);
   }
-  
-  // Load timer state
-  const loadTimerState = async () => {
-    const savedState = await db.getSettings()
-    if (savedState?.timerState) {
-      const state = savedState.timerState
-      timerType.value = state.timerType || 'focus'
-      currentSession.value = state.currentSession || 1
-      completedSessions.value = state.completedSessions || 0
-      resetToCurrentType()
-    }
-  }
-  
-  // Save timer state
-  const saveTimerState = async () => {
-    const timerState = {
-      timerType: timerType.value,
-      currentSession: currentSession.value,
-      completedSessions: completedSessions.value
+
+  async function completeSession() {
+    pauseTimer();
+    
+    const sessionType = currentMode.value;
+    const duration = sessionType === 'focus' ? focusDuration.value : 
+                     sessionType === 'shortBreak' ? shortBreakDuration.value : 
+                     longBreakDuration.value;
+    
+    // Save session to database
+    await addSession({
+      type: sessionType,
+      duration: duration
+    });
+    
+    // Update statistics if focus session
+    if (sessionType === 'focus') {
+      completedSessions.value++;
+      await updateDailyStats(null, duration);
     }
     
-    const currentSettings = await db.getSettings() || {}
-    await db.saveSettings({
-      ...currentSettings,
-      timerState
-    })
-  }
-  
-  // Watch for changes and auto-save
-  watch([timerType, currentSession, completedSessions], async () => {
-    try {
-      await saveTimerState()
-    } catch (err) {
-      console.error('Error auto-saving timer state:', err)
+    // Play sound and show notification
+    if (soundEnabled.value) {
+      playCompletionSound();
     }
-  }, { deep: true })
-  
-  // Cleanup
+    
+    if (notificationsEnabled.value) {
+      if (sessionType === 'focus') {
+        const nextSession = completedSessions.value;
+        if (nextSession % 4 === 0) {
+          notifyLongBreak();
+        } else {
+          notifyFocusComplete();
+        }
+      } else {
+        notifyBreakComplete();
+      }
+    }
+    
+    // Auto-transition to next session
+    const nextMode = getNextMode();
+    const shouldAutoStart = (nextMode === 'focus' && autoStartPomodoros.value) ||
+                           (nextMode !== 'focus' && autoStartBreaks.value);
+    
+    switchMode(nextMode, shouldAutoStart);
+  }
+
+  function switchMode(mode, autoStart = false) {
+    currentMode.value = mode;
+    timeRemaining.value = getDurationInSeconds(mode);
+    timerState.value = 'idle';
+    
+    if (autoStart) {
+      setTimeout(() => startTimer(), 1000);
+    }
+  }
+
+  function skipSession() {
+    const nextMode = getNextMode();
+    switchMode(nextMode);
+    
+    if (soundEnabled.value) {
+      playNotificationSound();
+    }
+  }
+
+  // Settings Management
+  async function loadSettings() {
+    const settings = {
+      focusDuration: await getSetting('focusDuration', 25),
+      shortBreakDuration: await getSetting('shortBreakDuration', 5),
+      longBreakDuration: await getSetting('longBreakDuration', 15),
+      autoStartBreaks: await getSetting('autoStartBreaks', false),
+      autoStartPomodoros: await getSetting('autoStartPomodoros', false),
+      soundEnabled: await getSetting('soundEnabled', true),
+      notificationsEnabled: await getSetting('notificationsEnabled', true),
+      completedSessions: await getSetting('completedSessions', 0)
+    };
+    
+    focusDuration.value = settings.focusDuration;
+    shortBreakDuration.value = settings.shortBreakDuration;
+    longBreakDuration.value = settings.longBreakDuration;
+    autoStartBreaks.value = settings.autoStartBreaks;
+    autoStartPomodoros.value = settings.autoStartPomodoros;
+    soundEnabled.value = settings.soundEnabled;
+    notificationsEnabled.value = settings.notificationsEnabled;
+    completedSessions.value = settings.completedSessions;
+    
+    timeRemaining.value = getDurationInSeconds(currentMode.value);
+  }
+
+  async function updateSettings(newSettings) {
+    if (newSettings.focusDuration !== undefined) {
+      focusDuration.value = newSettings.focusDuration;
+      await setSetting('focusDuration', newSettings.focusDuration);
+    }
+    if (newSettings.shortBreakDuration !== undefined) {
+      shortBreakDuration.value = newSettings.shortBreakDuration;
+      await setSetting('shortBreakDuration', newSettings.shortBreakDuration);
+    }
+    if (newSettings.longBreakDuration !== undefined) {
+      longBreakDuration.value = newSettings.longBreakDuration;
+      await setSetting('longBreakDuration', newSettings.longBreakDuration);
+    }
+    if (newSettings.autoStartBreaks !== undefined) {
+      autoStartBreaks.value = newSettings.autoStartBreaks;
+      await setSetting('autoStartBreaks', newSettings.autoStartBreaks);
+    }
+    if (newSettings.autoStartPomodoros !== undefined) {
+      autoStartPomodoros.value = newSettings.autoStartPomodoros;
+      await setSetting('autoStartPomodoros', newSettings.autoStartPomodoros);
+    }
+    if (newSettings.soundEnabled !== undefined) {
+      soundEnabled.value = newSettings.soundEnabled;
+      await setSetting('soundEnabled', newSettings.soundEnabled);
+    }
+    if (newSettings.notificationsEnabled !== undefined) {
+      notificationsEnabled.value = newSettings.notificationsEnabled;
+      await setSetting('notificationsEnabled', newSettings.notificationsEnabled);
+    }
+    
+    // Reset timer if durations changed and timer is idle
+    if (timerState.value === 'idle') {
+      timeRemaining.value = getDurationInSeconds(currentMode.value);
+    }
+  }
+
+  // Cleanup on unmount
   onUnmounted(() => {
-    if (timerInterval) clearInterval(timerInterval)
-    saveTimerState()
-  })
-  
-  // Initialize
-  resetToCurrentType()
-  
+    if (timerInterval) {
+      clearInterval(timerInterval);
+    }
+    // Save completed sessions count
+    setSetting('completedSessions', completedSessions.value);
+  });
+
+  // Initialize settings
+  loadSettings();
+
   return {
     // State
-    isRunning,
-    isPaused,
-    currentTime: displayTime,
-    timerType,
-    currentSession,
+    timerState,
+    currentMode,
+    timeRemaining,
     completedSessions,
+    minutes,
+    seconds,
     progress,
     strokeDashoffset,
     circumference,
+    sessionDots,
+    
+    // Settings
+    focusDuration,
+    shortBreakDuration,
+    longBreakDuration,
+    autoStartBreaks,
+    autoStartPomodoros,
+    soundEnabled,
+    notificationsEnabled,
     
     // Methods
     startTimer,
     pauseTimer,
     resetTimer,
-    skipTimer,
-    loadTimerState,
-    saveTimerState
-  }
+    skipSession,
+    switchMode,
+    loadSettings,
+    updateSettings
+  };
 }

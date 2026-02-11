@@ -1,268 +1,512 @@
 <template>
   <div class="settings-panel">
-    <div class="flex justify-between items-center mb-6">
-      <h2 class="text-2xl font-bold text-candy-blue flex items-center gap-2">
-        ⚙️ Timer Settings
+    <div class="settings-header">
+      <h2 class="section-title">
+        <span class="title-icon">⚙️</span>
+        Settings
       </h2>
-      <button @click="$emit('close')" class="text-gray-400 hover:text-white transition">
-        ✕
-      </button>
     </div>
-    
-    <!-- Timer Duration Settings -->
-    <div class="mb-8">
-      <h3 class="text-lg font-semibold text-gray-300 mb-4">Timer Durations</h3>
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div class="setting-item">
-          <label class="setting-label">Focus Time (min)</label>
-          <input 
-            v-model.number="localSettings.focusTime" 
-            type="number" 
-            min="1" 
-            max="60"
-            class="setting-input"
-          />
-          <div class="text-xs text-gray-400 mt-1">Default: 25 min</div>
-        </div>
-        
-        <div class="setting-item">
-          <label class="setting-label">Short Break (min)</label>
-          <input 
-            v-model.number="localSettings.shortBreak" 
-            type="number" 
-            min="1" 
-            max="30"
-            class="setting-input"
-          />
-          <div class="text-xs text-gray-400 mt-1">Default: 5 min</div>
-        </div>
-        
-        <div class="setting-item">
-          <label class="setting-label">Long Break (min)</label>
-          <input 
-            v-model.number="localSettings.longBreak" 
-            type="number" 
-            min="1" 
-            max="60"
-            class="setting-input"
-          />
-          <div class="text-xs text-gray-400 mt-1">Default: 15 min</div>
-        </div>
+
+    <!-- Timer Durations -->
+    <div class="settings-section">
+      <h3 class="section-subtitle">⏱️ Timer Durations</h3>
+      
+      <div class="setting-group">
+        <label class="setting-label">
+          <span class="label-text">Focus Duration</span>
+          <span class="label-value">{{ settings.focusDuration }} min</span>
+        </label>
+        <input
+          v-model.number="settings.focusDuration"
+          type="range"
+          min="1"
+          max="60"
+          step="1"
+          class="range-input pink-range"
+          @change="saveSettings"
+        />
+      </div>
+
+      <div class="setting-group">
+        <label class="setting-label">
+          <span class="label-text">Short Break</span>
+          <span class="label-value">{{ settings.shortBreakDuration }} min</span>
+        </label>
+        <input
+          v-model.number="settings.shortBreakDuration"
+          type="range"
+          min="1"
+          max="30"
+          step="1"
+          class="range-input blue-range"
+          @change="saveSettings"
+        />
+      </div>
+
+      <div class="setting-group">
+        <label class="setting-label">
+          <span class="label-text">Long Break</span>
+          <span class="label-value">{{ settings.longBreakDuration }} min</span>
+        </label>
+        <input
+          v-model.number="settings.longBreakDuration"
+          type="range"
+          min="1"
+          max="60"
+          step="1"
+          class="range-input purple-range"
+          @change="saveSettings"
+        />
       </div>
     </div>
-    
-    <!-- Advanced Settings -->
-    <div class="mb-8">
-      <h3 class="text-lg font-semibold text-gray-300 mb-4">Advanced Settings</h3>
-      <div class="space-y-4">
-        <div class="setting-item">
-          <label class="setting-label">Sessions Before Long Break</label>
-          <input 
-            v-model.number="localSettings.sessionsBeforeLongBreak" 
-            type="number" 
-            min="1" 
-            max="8"
-            class="setting-input"
-          />
-          <div class="text-xs text-gray-400 mt-1">Default: 4 sessions</div>
-        </div>
-        
-        <div class="space-y-3">
-          <div class="flex items-center gap-3">
-            <input 
-              type="checkbox" 
-              v-model="localSettings.autoStartBreaks"
-              id="autoStartBreaks"
-              class="setting-checkbox"
-            />
-            <label for="autoStartBreaks" class="text-white cursor-pointer">
-              Auto-start breaks after focus sessions
-            </label>
+
+    <!-- Auto-Start Options -->
+    <div class="settings-section">
+      <h3 class="section-subtitle">🚀 Auto-Start</h3>
+      
+      <div class="toggle-group">
+        <label class="toggle-label">
+          <div class="toggle-info">
+            <span class="toggle-text">Auto-start Breaks</span>
+            <span class="toggle-description">Automatically start break timers</span>
           </div>
-          
-          <div class="flex items-center gap-3">
-            <input 
-              type="checkbox" 
-              v-model="localSettings.autoStartPomodoros"
-              id="autoStartPomodoros"
-              class="setting-checkbox"
-            />
-            <label for="autoStartPomodoros" class="text-white cursor-pointer">
-              Auto-start next pomodoro after breaks
-            </label>
+          <button
+            @click="toggleSetting('autoStartBreaks')"
+            :class="['toggle-btn', { 'active': settings.autoStartBreaks }]"
+          >
+            <div class="toggle-slider"></div>
+          </button>
+        </label>
+      </div>
+
+      <div class="toggle-group">
+        <label class="toggle-label">
+          <div class="toggle-info">
+            <span class="toggle-text">Auto-start Pomodoros</span>
+            <span class="toggle-description">Automatically start focus sessions</span>
           </div>
-          
-          <div class="flex items-center gap-3">
-            <input 
-              type="checkbox" 
-              v-model="localSettings.desktopNotifications"
-              id="desktopNotifications"
-              class="setting-checkbox"
-            />
-            <label for="desktopNotifications" class="text-white cursor-pointer">
-              Enable desktop notifications
-            </label>
-          </div>
-          
-          <div class="flex items-center gap-3">
-            <input 
-              type="checkbox" 
-              v-model="localSettings.soundEnabled"
-              id="soundEnabled"
-              class="setting-checkbox"
-            />
-            <label for="soundEnabled" class="text-white cursor-pointer">
-              Enable sound alerts
-            </label>
-          </div>
-        </div>
+          <button
+            @click="toggleSetting('autoStartPomodoros')"
+            :class="['toggle-btn', { 'active': settings.autoStartPomodoros }]"
+          >
+            <div class="toggle-slider"></div>
+          </button>
+        </label>
       </div>
     </div>
-    
-    <!-- Action Buttons -->
-    <div class="flex gap-4">
-      <button @click="saveSettings" class="candy-btn bg-gradient-to-r from-candy-green to-emerald-500">
-        💾 Save Settings
-      </button>
-      <button @click="resetToDefaults" class="candy-btn bg-gradient-to-r from-candy-blue to-cyan-500">
-        🔄 Reset to Defaults
-      </button>
-      <button @click="clearAllData" class="candy-btn bg-gradient-to-r from-red-500 to-red-600">
-        🗑️ Clear All Data
+
+    <!-- Notifications & Sounds -->
+    <div class="settings-section">
+      <h3 class="section-subtitle">🔔 Notifications & Sounds</h3>
+      
+      <div class="toggle-group">
+        <label class="toggle-label">
+          <div class="toggle-info">
+            <span class="toggle-text">Desktop Notifications</span>
+            <span class="toggle-description">Show browser notifications</span>
+          </div>
+          <button
+            @click="handleNotificationToggle"
+            :class="['toggle-btn', { 'active': settings.notificationsEnabled }]"
+          >
+            <div class="toggle-slider"></div>
+          </button>
+        </label>
+      </div>
+
+      <div class="toggle-group">
+        <label class="toggle-label">
+          <div class="toggle-info">
+            <span class="toggle-text">Sound Alerts</span>
+            <span class="toggle-description">Play sounds on timer completion</span>
+          </div>
+          <button
+            @click="toggleSetting('soundEnabled')"
+            :class="['toggle-btn', { 'active': settings.soundEnabled }]"
+          >
+            <div class="toggle-slider"></div>
+          </button>
+        </label>
+      </div>
+
+      <button
+        v-if="settings.soundEnabled"
+        @click="playTestSound"
+        class="test-sound-btn"
+      >
+        🔊 Test Sound
       </button>
     </div>
-    
-    <!-- Notification Permission -->
-    <div v-if="!notificationPermissionGranted" class="mt-6 p-4 bg-candy-blue/10 rounded-xl">
-      <p class="text-sm text-candy-blue mb-2">🔔 Enable desktop notifications for timer alerts</p>
-      <button @click="requestNotificationPermission" class="px-4 py-2 bg-candy-blue text-white rounded-lg text-sm">
-        Enable Notifications
-      </button>
+
+    <!-- Save Indicator -->
+    <div class="save-indicator" v-if="showSaveIndicator">
+      <span class="indicator-icon">✓</span>
+      <span class="indicator-text">Settings saved!</span>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, watch } from 'vue'
-import { playSound, notify } from '../utils/notifications'
+import { ref, reactive, watch } from 'vue';
+import { playCompletionSound, setSoundEnabled } from '../utils/audio';
+import { 
+  requestNotificationPermission, 
+  setNotificationsEnabled 
+} from '../utils/notifications';
 
 const props = defineProps({
-  settings: {
-    type: Object,
-    required: true
-  }
-})
+  focusDuration: { type: Number, required: true },
+  shortBreakDuration: { type: Number, required: true },
+  longBreakDuration: { type: Number, required: true },
+  autoStartBreaks: { type: Boolean, required: true },
+  autoStartPomodoros: { type: Boolean, required: true },
+  soundEnabled: { type: Boolean, required: true },
+  notificationsEnabled: { type: Boolean, required: true }
+});
 
-const emit = defineEmits(['update', 'close'])
+const emit = defineEmits(['updateSettings']);
 
-// Local copy of settings
-const localSettings = reactive({ ...props.settings })
+const settings = reactive({
+  focusDuration: props.focusDuration,
+  shortBreakDuration: props.shortBreakDuration,
+  longBreakDuration: props.longBreakDuration,
+  autoStartBreaks: props.autoStartBreaks,
+  autoStartPomodoros: props.autoStartPomodoros,
+  soundEnabled: props.soundEnabled,
+  notificationsEnabled: props.notificationsEnabled
+});
 
-const notificationPermissionGranted = ref('Notification' in window && Notification.permission === 'granted')
+const showSaveIndicator = ref(false);
 
-const saveSettings = () => {
-  emit('update', { ...localSettings })
-  playSound('start')
-  notify('Settings Saved', 'Your preferences have been updated!')
+// Watch for prop changes
+watch(() => props, (newProps) => {
+  Object.assign(settings, newProps);
+}, { deep: true });
+
+function saveSettings() {
+  emit('updateSettings', { ...settings });
+  showSaveIndicator.value = true;
+  setTimeout(() => {
+    showSaveIndicator.value = false;
+  }, 2000);
 }
 
-const resetToDefaults = () => {
-  if (confirm('Reset all settings to defaults?')) {
-    Object.assign(localSettings, {
-      focusTime: 25,
-      shortBreak: 5,
-      longBreak: 15,
-      sessionsBeforeLongBreak: 4,
-      autoStartBreaks: true,
-      autoStartPomodoros: true,
-      desktopNotifications: true,
-      soundEnabled: true
-    })
-    notify('Settings Reset', 'All settings have been reset to defaults')
+function toggleSetting(key) {
+  settings[key] = !settings[key];
+  
+  // Update audio/notification utilities
+  if (key === 'soundEnabled') {
+    setSoundEnabled(settings.soundEnabled);
   }
+  if (key === 'notificationsEnabled') {
+    setNotificationsEnabled(settings.notificationsEnabled);
+  }
+  
+  saveSettings();
 }
 
-const clearAllData = () => {
-  if (confirm('⚠️ WARNING: This will delete all tasks and session history. This cannot be undone!')) {
-    // Clear IndexedDB data
-    localStorage.clear()
-    sessionStorage.clear()
-    notify('Data Cleared', 'All data has been deleted')
-  }
-}
-
-const requestNotificationPermission = async () => {
-  if ('Notification' in window) {
-    const permission = await Notification.requestPermission()
-    notificationPermissionGranted.value = permission === 'granted'
-    
-    if (notificationPermissionGranted.value) {
-      notify('Notifications Enabled', 'You will now receive timer alerts!')
+async function handleNotificationToggle() {
+  if (!settings.notificationsEnabled) {
+    const granted = await requestNotificationPermission();
+    if (granted) {
+      settings.notificationsEnabled = true;
+      setNotificationsEnabled(true);
+      saveSettings();
+    } else {
+      alert('Please enable notifications in your browser settings to use this feature.');
     }
+  } else {
+    settings.notificationsEnabled = false;
+    setNotificationsEnabled(false);
+    saveSettings();
   }
 }
 
-// Watch for changes in parent settings
-watch(() => props.settings, (newSettings) => {
-  Object.assign(localSettings, newSettings)
-}, { deep: true })
+function playTestSound() {
+  playCompletionSound();
+}
 </script>
 
 <style scoped>
 .settings-panel {
-  background: #2d2d44;
-  border-radius: 1rem;
-  padding: 1.5rem;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
 }
 
-.setting-item {
-  margin-bottom: 1rem;
+/* Header */
+.settings-header {
+  margin-bottom: 1.5rem;
+}
+
+.section-title {
+  font-family: 'Quicksand', sans-serif;
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: white;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.title-icon {
+  font-size: 1.5rem;
+}
+
+/* Settings Sections */
+.settings-section {
+  padding: 1.5rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: 1.5rem;
+}
+
+.section-subtitle {
+  font-family: 'Poppins', sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+  color: white;
+  margin: 0 0 1.5rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Setting Group */
+.setting-group {
+  margin-bottom: 1.5rem;
+}
+
+.setting-group:last-child {
+  margin-bottom: 0;
 }
 
 .setting-label {
-  display: block;
-  color: #D1D5DB;
-  margin-bottom: 0.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.label-text {
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.95rem;
   font-weight: 500;
+  color: rgba(255, 255, 255, 0.8);
 }
 
-.setting-input {
-  width: 100%;
-  background: rgba(255, 255, 255, 0.1);
-  border: 2px solid #9F7AEA;
-  border-radius: 0.75rem;
-  padding: 0.75rem 1rem;
+.label-value {
+  font-family: 'Quicksand', sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
   color: white;
-  transition: border-color 0.3s ease;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 0.25rem 0.75rem;
+  border-radius: 0.5rem;
 }
 
-.setting-input:focus {
+/* Range Inputs */
+.range-input {
+  width: 100%;
+  height: 8px;
+  border-radius: 4px;
   outline: none;
-  border-color: #FF69B4;
-}
-
-.setting-checkbox {
-  width: 1.25rem;
-  height: 1.25rem;
+  appearance: none;
   cursor: pointer;
-  accent-color: #FF69B4;
+  transition: all 0.3s ease;
 }
 
-.candy-btn {
-  flex: 1;
-  padding: 0.75rem 1rem;
-  border-radius: 0.75rem;
-  font-weight: bold;
-  transition: transform 0.3s ease;
+.range-input::-webkit-slider-thumb {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: white;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  transition: all 0.2s ease;
 }
 
-.candy-btn:hover {
-  transform: scale(1.05);
+.range-input::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
 }
 
-.candy-btn:active {
-  transform: scale(0.95);
+.range-input::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: white;
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  transition: all 0.2s ease;
+}
+
+.range-input::-moz-range-thumb:hover {
+  transform: scale(1.2);
+}
+
+.pink-range {
+  background: linear-gradient(to right, #FF69B4, #FF1493);
+}
+
+.blue-range {
+  background: linear-gradient(to right, #6EC5E9, #4A9FCC);
+}
+
+.purple-range {
+  background: linear-gradient(to right, #B19CD9, #9370DB);
+}
+
+/* Toggle Groups */
+.toggle-group {
+  margin-bottom: 1rem;
+}
+
+.toggle-group:last-child {
+  margin-bottom: 0;
+}
+
+.toggle-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.toggle-label:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.toggle-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.toggle-text {
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: white;
+}
+
+.toggle-description {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* Toggle Button */
+.toggle-btn {
+  position: relative;
+  width: 52px;
+  height: 28px;
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+}
+
+.toggle-btn.active {
+  background: linear-gradient(135deg, #FF69B4, #B19CD9);
+}
+
+.toggle-slider {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  background: white;
+  border-radius: 50%;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.toggle-btn.active .toggle-slider {
+  transform: translateX(24px);
+}
+
+/* Test Sound Button */
+.test-sound-btn {
+  width: 100%;
+  padding: 0.875rem 1.5rem;
+  margin-top: 1rem;
+  background: linear-gradient(135deg, rgba(255, 105, 180, 0.2), rgba(177, 156, 217, 0.2));
+  border: 1px solid rgba(255, 105, 180, 0.3);
+  border-radius: 1rem;
+  color: white;
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.test-sound-btn:hover {
+  background: linear-gradient(135deg, rgba(255, 105, 180, 0.3), rgba(177, 156, 217, 0.3));
+  border-color: rgba(255, 105, 180, 0.5);
+  transform: translateY(-2px);
+}
+
+/* Save Indicator */
+.save-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  background: linear-gradient(135deg, rgba(119, 221, 119, 0.2), rgba(80, 200, 120, 0.2));
+  border: 1px solid rgba(119, 221, 119, 0.3);
+  border-radius: 1rem;
+  color: #77DD77;
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  animation: slideIn 0.3s ease, fadeOut 0.3s ease 1.7s;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeOut {
+  to {
+    opacity: 0;
+  }
+}
+
+.indicator-icon {
+  font-size: 1.2rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .settings-section {
+    padding: 1.25rem;
+  }
+
+  .toggle-label {
+    padding: 0.875rem;
+  }
+
+  .toggle-info {
+    max-width: calc(100% - 60px);
+  }
 }
 </style>
