@@ -1,5 +1,5 @@
 /**
- * Tasks Composable - Task Management Logic
+ * Tasks Composable - Task Management Logic (IMPROVED & BUG-FIXED)
  * Handles CRUD operations for tasks with IndexedDB persistence
  */
 import { ref, computed, onMounted } from 'vue';
@@ -54,9 +54,7 @@ export function useTasks() {
   }
 
   /**
-   * ✅ addTask()
-   * This version is compatible with your App.vue
-   * because App.vue calls addTask() without passing args.
+   * ✅ addTask() - Works with App.vue which calls addTask() without args
    */
   async function addTask() {
     const title = newTaskTitle.value;
@@ -80,8 +78,14 @@ export function useTasks() {
   }
 
   /**
-   * ✅ toggleTask()
-   * This matches App.vue usage: toggleTask(task.id)
+   * ✅ addTaskFromInput() - FIXED for TaskManager.vue compatibility
+   */
+  async function addTaskFromInput() {
+    return await addTask();
+  }
+
+  /**
+   * ✅ toggleTask() - App.vue compatible: toggleTask(task.id)
    */
   async function toggleTask(taskId) {
     try {
@@ -99,6 +103,13 @@ export function useTasks() {
       console.error('Error toggling task:', error);
       return null;
     }
+  }
+
+  /**
+   * ✅ toggleComplete() - FIXED for TaskManager.vue compatibility
+   */
+  async function toggleComplete(taskId) {
+    return await toggleTask(taskId);
   }
 
   async function deleteTask(taskId) {
@@ -156,10 +167,12 @@ export function useTasks() {
     totalTasks,
     completionRate,
 
-    // Methods (MATCH App.vue)
+    // Methods (BOTH function names exported for compatibility)
     loadTasks,
     addTask,
+    addTaskFromInput, // ✅ FIXED
     toggleTask,
+    toggleComplete,   // ✅ FIXED
     deleteTask,
     updateTask,
     clearCompletedTasks

@@ -512,4 +512,52 @@ function formatTime(dateString) {
     padding: 0.875rem 1rem;
   }
 }
+
+.task-list {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 0.5rem;
+  margin-top: 1rem;
+  max-height: calc(100vh - 300px); /* Adjust based on your layout */
+}
+
+/* Scrollbar styling */
+.task-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.task-list::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+}
+
+.task-list::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, #FF69B4, #B19CD9);
+  border-radius: 3px;
+}
+
+/* Make task manager take full height */
+.task-manager {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.task-header,
+.add-task-form {
+  flex-shrink: 0;
+}
+
+/* Responsive */
+@media (max-width: 992px) {
+  .task-list {
+    max-height: 400px;
+  }
+}
+
+@media (max-width: 768px) {
+  .task-list {
+    max-height: 350px;
+  }
+}
 </style>

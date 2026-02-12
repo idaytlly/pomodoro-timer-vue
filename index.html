@@ -2,45 +2,49 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <!-- 🍬 Candy icon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍬</text></svg>">
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     
-    <!-- PWA Meta Tags - UPDATED FOR LIGHT THEME -->
-    <meta name="theme-color" content="#f8f9fa">
-    <meta name="description" content="Candy-themed Pomodoro Timer built with Vue.js 3, Chart.js, and IndexedDB">
-    <meta name="keywords" content="pomodoro, timer, productivity, vue, chartjs, indexeddb">
+    <!-- 🌑 DARK THEME - Deep navy -->
+    <meta name="theme-color" content="#1a1a2e">
+    <meta name="description" content="🍬 Candy Pomodoro - Sweet dark theme timer with Tailwind CSS. Stay productive with candy aesthetics!">
+    <meta name="keywords" content="pomodoro, timer, dark theme, candy, tailwind, vue, productivity">
     <meta name="author" content="Ida Yatullailliyeh">
     
-    <!-- PWA Manifest -->
+    <!-- 📱 PWA Manifest -->
     <link rel="manifest" href="/manifest.json">
     
-    <!-- Apple PWA Tags - UPDATED FOR LIGHT THEME -->
+    <!-- 🍎 Apple PWA -->
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Candy Pomodoro">
-    <link rel="apple-touch-icon" href="/vite.svg">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='%23FF69B4'/><text x='50' y='70' font-size='50' text-anchor='middle' fill='white'>🍭</text></svg>">
     
-    <!-- Windows PWA Tags - UPDATED FOR LIGHT THEME -->
-    <meta name="msapplication-TileColor" content="#f8f9fa">
+    <!-- 🪟 Windows PWA -->
+    <meta name="msapplication-TileColor" content="#1a1a2e">
     
-    <title>Candy Pomodoro Timer</title>
+    <!-- 📝 Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600;700&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     
-    <!-- Register Service Worker -->
+    <title>🍬 Candy Pomodoro</title>
+    
+    <!-- 🔔 Service Worker -->
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('/sw.js')
             .then(registration => {
-              console.log('ServiceWorker registration successful')
+              console.log('🍭 ServiceWorker registered!');
             })
             .catch(err => {
-              console.log('ServiceWorker registration failed: ', err)
-            })
-        })
+              console.log('❌ ServiceWorker failed: ', err);
+            });
+        });
       }
     </script>
   </head>
-  <body>
+  <body class="bg-gradient-dark min-h-screen antialiased">
     <div id="app"></div>
     <script type="module" src="/src/main.js"></script>
   </body>
