@@ -115,14 +115,6 @@ setTimeout(tick, Math.max(0, 1000 - drift));
 
 ---
 
-## 💬 What I'd Tell An Interviewer
-
-*"I built this to solve a real problem—I needed focus, and existing timers either required internet or lost my data. So I made one that works on a train, in a coffee shop, or completely offline. The hardest part wasn't the timer—it was designing a database schema that could handle years of sessions without slowing down. That's why I denormalized daily stats. Now it loads instantly, forever."*
-
-*"Oh, and the sounds? Those aren't files. I generated them. Because waiting for audio to load is still waiting."*
-
----
-
 ## ⚡ Live Demo & Repo
 
 **GitHub:** [github.com/idaytlly/pomodoro-timer-vue](https://github.com/idaytlly/pomodoro-timer-vue)
