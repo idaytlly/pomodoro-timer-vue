@@ -17,7 +17,9 @@ export function useTasks() {
   const newTaskTitle = ref('');
   const isLoading = ref(true);
 
+  // ----------------------------
   // Computed Properties
+  // ----------------------------
   const activeTasks = computed(() => {
     return tasks.value.filter(task => !task.completed);
   });
@@ -27,35 +29,49 @@ export function useTasks() {
   });
 
   const totalTasks = computed(() => tasks.value.length);
-  
+
   const completionRate = computed(() => {
     if (totalTasks.value === 0) return 0;
     return Math.round((completedTasks.value.length / totalTasks.value) * 100);
   });
 
+  // ----------------------------
   // Task Operations
+  // ----------------------------
   async function loadTasks() {
     try {
       isLoading.value = true;
       tasks.value = await getAllTasks();
+
       // Sort by creation date, newest first
       tasks.value.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     } catch (error) {
       console.error('Error loading tasks:', error);
+      tasks.value = [];
     } finally {
       isLoading.value = false;
     }
   }
 
-  async function addTask(title) {
+  /**
+   * ✅ addTask()
+   * This version is compatible with your App.vue
+   * because App.vue calls addTask() without passing args.
+   */
+  async function addTask() {
+    const title = newTaskTitle.value;
+
     if (!title || !title.trim()) {
       return false;
     }
 
     try {
-      const taskId = await dbAddTask({ title: title.trim() });
-      await loadTasks(); // Reload to get the full task with ID
+      await dbAddTask({ title: title.trim() });
+
+      newTaskTitle.value = '';
+      await loadTasks();
       playClickSound();
+
       return true;
     } catch (error) {
       console.error('Error adding task:', error);
@@ -63,25 +79,21 @@ export function useTasks() {
     }
   }
 
-  async function addTaskFromInput() {
-    if (await addTask(newTaskTitle.value)) {
-      newTaskTitle.value = '';
-      return true;
-    }
-    return false;
-  }
-
-  async function toggleComplete(taskId) {
+  /**
+   * ✅ toggleTask()
+   * This matches App.vue usage: toggleTask(task.id)
+   */
+  async function toggleTask(taskId) {
     try {
       const task = await dbToggleTaskComplete(taskId);
       await loadTasks();
-      
+
       if (task && task.completed) {
         playSuccessSound();
       } else {
         playClickSound();
       }
-      
+
       return task;
     } catch (error) {
       console.error('Error toggling task:', error);
@@ -125,7 +137,9 @@ export function useTasks() {
     }
   }
 
+  // ----------------------------
   // Initialize
+  // ----------------------------
   onMounted(() => {
     loadTasks();
   });
@@ -135,18 +149,17 @@ export function useTasks() {
     tasks,
     newTaskTitle,
     isLoading,
-    
+
     // Computed
     activeTasks,
     completedTasks,
     totalTasks,
     completionRate,
-    
-    // Methods
+
+    // Methods (MATCH App.vue)
     loadTasks,
     addTask,
-    addTaskFromInput,
-    toggleComplete,
+    toggleTask,
     deleteTask,
     updateTask,
     clearCompletedTasks

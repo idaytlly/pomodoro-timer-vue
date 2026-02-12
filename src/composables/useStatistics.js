@@ -15,33 +15,77 @@ export function useStatistics() {
   const recentSessions = ref([]);
   const isLoading = ref(true);
 
+  // Helper Functions
+  function getLast7Days() {
+    const days = [];
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      days.push(date.toISOString().split('T')[0]);
+    }
+    return days;
+  }
+
+  function formatDateShort(dateString) {
+    const date = new Date(dateString);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+
+    if (dateString === today.toISOString().split('T')[0]) return 'Today';
+    if (dateString === yesterday.toISOString().split('T')[0]) return 'Yesterday';
+
+    return date.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric'
+    });
+  }
+
+  function formatSessionType(type) {
+    switch (type) {
+      case 'focus': return '🎯 Focus';
+      case 'shortBreak': return '☕ Short Break';
+      case 'longBreak': return '🌟 Long Break';
+      default: return type;
+    }
+  }
+
+  function formatTimeAgo(dateString) {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays === 1) return 'Yesterday';
+    return `${diffDays}d ago`;
+  }
+
   // Computed Properties
-  const todayFocusMinutes = computed(() => {
-    return todayStats.value?.focusMinutes || 0;
-  });
+  const todayFocusMinutes = computed(() => todayStats.value?.focusMinutes || 0);
+  const todaySessionCount = computed(() => todayStats.value?.sessionCount || 0);
 
-  const todaySessionCount = computed(() => {
-    return todayStats.value?.sessionCount || 0;
-  });
+  const weeklyFocusMinutes = computed(() =>
+    weeklyStats.value.reduce((sum, day) => sum + (day.focusMinutes || 0), 0)
+  );
 
-  const weeklyFocusMinutes = computed(() => {
-    return weeklyStats.value.reduce((sum, day) => sum + (day.focusMinutes || 0), 0);
-  });
-
-  const weeklySessionCount = computed(() => {
-    return weeklyStats.value.reduce((sum, day) => sum + (day.sessionCount || 0), 0);
-  });
+  const weeklySessionCount = computed(() =>
+    weeklyStats.value.reduce((sum, day) => sum + (day.sessionCount || 0), 0)
+  );
 
   const productivityPercentage = computed(() => {
-    // Calculate based on 8-hour workday goal (480 minutes)
-    const targetMinutes = 480;
-    const actual = weeklyFocusMinutes.value / 7; // Average per day
+    const targetMinutes = 480; // 8-hour goal per day
+    const actual = weeklyFocusMinutes.value / 7;
     return Math.min(Math.round((actual / targetMinutes) * 100), 100);
   });
 
   const weeklyGoalProgress = computed(() => {
-    // Weekly goal: 5 days × 8 hours = 2400 minutes
-    const weeklyGoal = 2400;
+    const weeklyGoal = 2400; // 5 days × 8 hours
     return Math.min(Math.round((weeklyFocusMinutes.value / weeklyGoal) * 100), 100);
   });
 
@@ -49,11 +93,11 @@ export function useStatistics() {
   const chartData = computed(() => {
     const last7Days = getLast7Days();
     const data = last7Days.map(date => {
-      const stat = weeklyStats.value.find(s => s.date === date);
+      const stat = weeklyStats.value.find(s => s.date === date) || {};
       return {
         date: formatDateShort(date),
-        minutes: stat?.focusMinutes || 0,
-        sessions: stat?.sessionCount || 0
+        minutes: stat.focusMinutes || 0,
+        sessions: stat.sessionCount || 0
       };
     });
 
@@ -80,10 +124,10 @@ export function useStatistics() {
   const sessionChartData = computed(() => {
     const last7Days = getLast7Days();
     const data = last7Days.map(date => {
-      const stat = weeklyStats.value.find(s => s.date === date);
+      const stat = weeklyStats.value.find(s => s.date === date) || {};
       return {
         date: formatDateShort(date),
-        sessions: stat?.sessionCount || 0
+        sessions: stat.sessionCount || 0
       };
     });
 
@@ -107,73 +151,17 @@ export function useStatistics() {
     };
   });
 
-  // Helper Functions
-  function getLast7Days() {
-    const days = [];
-    for (let i = 6; i >= 0; i--) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      days.push(date.toISOString().split('T')[0]);
-    }
-    return days;
-  }
-
-  function formatDateShort(dateString) {
-    const date = new Date(dateString);
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-
-    if (dateString === today.toISOString().split('T')[0]) {
-      return 'Today';
-    } else if (dateString === yesterday.toISOString().split('T')[0]) {
-      return 'Yesterday';
-    } else {
-      return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-    }
-  }
-
-  function formatSessionType(type) {
-    switch (type) {
-      case 'focus':
-        return '🎯 Focus';
-      case 'shortBreak':
-        return '☕ Short Break';
-      case 'longBreak':
-        return '🌟 Long Break';
-      default:
-        return type;
-    }
-  }
-
-  function formatTimeAgo(dateString) {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now - date;
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMins / 60);
-    const diffDays = Math.floor(diffHours / 24);
-
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays === 1) return 'Yesterday';
-    return `${diffDays}d ago`;
-  }
-
   // Data Loading
   async function loadStatistics() {
     try {
       isLoading.value = true;
-      
-      // Load weekly stats
-      weeklyStats.value = await getWeeklyStats();
-      
-      // Load today's stats
+
+      const rawStats = await getWeeklyStats();
+      weeklyStats.value = rawStats.sort((a, b) => new Date(a.date) - new Date(b.date));
+
       const today = new Date().toISOString().split('T')[0];
       todayStats.value = await getStatsByDate(today);
-      
-      // Load recent sessions
+
       recentSessions.value = await getRecentSessions(10);
     } catch (error) {
       console.error('Error loading statistics:', error);
@@ -186,19 +174,16 @@ export function useStatistics() {
     await loadStatistics();
   }
 
-  // Initialize
   onMounted(() => {
     loadStatistics();
   });
 
   return {
-    // State
     weeklyStats,
     todayStats,
     recentSessions,
     isLoading,
-    
-    // Computed
+
     todayFocusMinutes,
     todaySessionCount,
     weeklyFocusMinutes,
@@ -207,8 +192,7 @@ export function useStatistics() {
     weeklyGoalProgress,
     chartData,
     sessionChartData,
-    
-    // Methods
+
     loadStatistics,
     refreshStats,
     formatSessionType,

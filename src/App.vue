@@ -113,8 +113,10 @@
                   class="task-delete-btn"
                 >🗑️</button>
               </div>
+
+              <!-- ✅ FIXED HERE -->
               <div 
-                v-if="store.tasks.length === 0" 
+                v-if="tasks.length === 0" 
                 class="empty-tasks"
               >
                 ✨ No tasks — add one!
@@ -235,7 +237,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
+import { ref, reactive, computed, onMounted } from 'vue';
 import { useTasks } from './composables/useTasks';
 import { useStatistics } from './composables/useStatistics';
 import { useTimer } from './composables/useTimer';
@@ -830,7 +832,7 @@ onMounted(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 16px;
-  margin-top: 8px;
+  margin-top:  8px;
   align-items: center;
 }
 
